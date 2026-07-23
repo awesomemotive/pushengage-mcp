@@ -1,0 +1,31 @@
+# NOTE: publishing is primarily controlled by the "files" allowlist in package.json
+# (["dist", "README.md", "LICENSE"]). This .npmignore is a backstop for repo-root dev files,
+# in case that allowlist is ever loosened. It cannot exclude anything inside dist/ — files
+# matched by the "files" field cannot be removed via .npmignore.
+
+# Source & tests (the published build is dist/)
+src/
+test/
+**/*.test.ts
+coverage/
+
+# Repo-only docs (README.md is published; these are not)
+docs/
+
+# Tooling & config
+tsconfig.json
+tsconfig.build.json
+jest.config.js
+biome.json
+scripts/
+.editorconfig
+.gitignore
+.npmignore
+.husky/
+.claude/
+.cursor/
+.github/
+
+# Misc
+*.tgz
+*.log

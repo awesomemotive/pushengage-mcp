@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.awesomemotive/pushengage-mcp",
+  "title": "PushEngage",
+  "description": "Send push notifications, build audiences, and view campaign analytics from PushEngage.",
+  "repository": {
+    "url": "https://github.com/awesomemotive/pushengage-mcp",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "websiteUrl": "https://www.pushengage.com",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@pushengage/mcp",
+      "version": "1.0.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "PE_MCP_CONFIG_PATH",
+          "description": "Path to the token/config file. Defaults to ~/.pushengage/mcp.json. Set it to run multiple PushEngage accounts side by side.",
+          "isRequired": false
+        },
+        {
+          "name": "PE_MCP_CLIENT_NAME",
+          "description": "Label shown on the PushEngage authorize screen as the requesting app, e.g. \"Claude Desktop\".",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

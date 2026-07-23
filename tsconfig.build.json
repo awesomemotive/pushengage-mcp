@@ -1,0 +1,6 @@
+{
+  // Build config: same options as tsconfig.json, but excludes the colocated *.test.ts files so
+  // they are never emitted into dist/. Used by `npm run build`.
+  "extends": "./tsconfig.json",
+  "exclude": ["dist", "node_modules", "**/*.test.ts"]
+}
