@@ -1,0 +1,177 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/mcpb/main/dist/mcpb-manifest.schema.json",
+  "manifest_version": "0.3",
+  "name": "pushengage-mcp",
+  "display_name": "PushEngage",
+  "version": "1.0.0",
+  "description": "Send push notifications, build audiences, and view campaign analytics from PushEngage.",
+  "long_description": "Connects your AI assistant to your [PushEngage](https://www.pushengage.com/) account so you can send and schedule web push notifications, run A/B tests, build segments and audience groups, inspect campaign analytics, and manage site settings — just by asking.\n\nNo API key is needed: the first time you use a tool, the server opens your browser to the PushEngage dashboard where you click **Authorize**. The access token is stored locally on your machine (`~/.pushengage/mcp.json`, permissions `0600`) and never leaves it.",
+  "author": {
+    "name": "PushEngage",
+    "url": "https://www.pushengage.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/awesomemotive/pushengage-mcp.git"
+  },
+  "homepage": "https://github.com/awesomemotive/pushengage-mcp#readme",
+  "documentation": "https://github.com/awesomemotive/pushengage-mcp#readme",
+  "support": "https://github.com/awesomemotive/pushengage-mcp/issues",
+  "license": "MIT",
+  "icon": "icon.png",
+  "keywords": [
+    "pushengage",
+    "push-notifications",
+    "web-push",
+    "marketing-automation",
+    "campaigns",
+    "analytics"
+  ],
+  "privacy_policies": ["https://www.pushengage.com/privacy-policy/"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "PE_MCP_CLIENT_NAME": "${user_config.client_name}",
+        "PE_MCP_CONFIG_PATH": "${user_config.config_path}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "pushengage_auth_login",
+      "description": "Opens a browser window to the PushEngage dashboard."
+    },
+    {
+      "name": "pushengage_auth_status",
+      "description": "Returns the current login state: authenticated (bool), expires_at (token expiry ISO string), current_site_id, api_url, dashboard_url, and client_name."
+    },
+    {
+      "name": "pushengage_auth_logout",
+      "description": "Revokes the current PushEngage session on the server and deletes the locally stored token."
+    },
+    {
+      "name": "pushengage_list_sites",
+      "description": "Lists PushEngage sites the authenticated user can access."
+    },
+    {
+      "name": "pushengage_select_site",
+      "description": "Sets the current site used by all site-scoped tools (pushengage_send_notification, pushengage_list_segments, pushengage_get_analytics_summary, pushengage_list_drip_campaigns, etc.) when no site_id is provided."
+    },
+    {
+      "name": "pushengage_get_site_details",
+      "description": "Returns the current site's details, matching the dashboard's Site Details page: name, URL, image, timezone, geolocation toggle, and the \"Powered By PushEngage\" branding toggle."
+    },
+    {
+      "name": "pushengage_update_site_details",
+      "description": "Updates the current site's details."
+    },
+    {
+      "name": "pushengage_get_campaign_defaults",
+      "description": "Returns the current site's campaign default settings: utm_parameters (enabled + source/medium/campaign/term/content), fallback_notification (title/message/url), fallback_attributes (city/country), and default_expiry (broken into total_seconds + days/hours/minutes)."
+    },
+    {
+      "name": "pushengage_update_campaign_defaults",
+      "description": "Updates one or more of the current site's campaign default settings."
+    },
+    {
+      "name": "pushengage_get_service_worker_settings",
+      "description": "Returns the current site's Service Worker Settings (from the Advanced Settings page), using the dashboard labels: enable_service_worker_registration (\"Enable the service worker registration from PushEngage\"), enable_service_worker_in_subfolder (\"Enable addition of service worker in another sub-folder\"), and service_worker_file_path (\"Path for service worker file\")."
+    },
+    {
+      "name": "pushengage_update_service_worker_settings",
+      "description": "Updates the current site's Service Worker Settings."
+    },
+    {
+      "name": "pushengage_list_segments",
+      "description": "Lists segments on the current site, paginated (response includes `has_more`)."
+    },
+    {
+      "name": "pushengage_create_segment",
+      "description": "Creates a new segment on the current site."
+    },
+    {
+      "name": "pushengage_list_attributes",
+      "description": "Lists subscriber attributes (custom keys set on subscribers via the JS SDK) on the current site, paginated (response includes `has_more`)."
+    },
+    {
+      "name": "pushengage_create_attribute",
+      "description": "Creates a new subscriber attribute on the current site."
+    },
+    {
+      "name": "pushengage_list_audience_groups",
+      "description": "Lists audience groups on the current site, paginated (response includes `has_more`)."
+    },
+    {
+      "name": "pushengage_create_audience_group",
+      "description": "Creates a new audience group on the current site."
+    },
+    {
+      "name": "pushengage_list_notifications",
+      "description": "Lists push notifications on the current site, newest first, paginated (response includes `has_more`)."
+    },
+    {
+      "name": "pushengage_send_notification",
+      "description": "Creates and sends a push notification on the current site."
+    },
+    {
+      "name": "pushengage_send_ab_notification",
+      "description": "Creates an A/B notification on the current site with two variants (variant_a and variant_b)."
+    },
+    {
+      "name": "pushengage_get_analytics_summary",
+      "description": "Returns the current site's all-time, site-wide totals: subscribers (current active count), notifications sent, views, clicks, and goal conversions/value."
+    },
+    {
+      "name": "pushengage_get_analytics_timeseries",
+      "description": "Returns a time series of the current site's analytics between start_date and end_date, bucketed by group_by."
+    },
+    {
+      "name": "pushengage_list_drip_campaigns",
+      "description": "Lists the drip autoresponder campaigns on the current site, paginated (response includes `has_more`)."
+    },
+    {
+      "name": "pushengage_list_triggered_campaigns",
+      "description": "Lists the triggered campaigns (Price Drop / Inventory Alert / Cart Abandonment / etc.) on the current site, paginated (response includes `has_more`)."
+    },
+    {
+      "name": "pushengage_list_rss_campaigns",
+      "description": "Lists the RSS auto push campaigns on the current site, paginated (response includes `has_more`)."
+    },
+    {
+      "name": "pushengage_list_workflows",
+      "description": "Lists the workflow automations on the current site, paginated (response includes `has_more`)."
+    },
+    {
+      "name": "pushengage_list_chat_widgets",
+      "description": "Lists the chat widgets on the current site, paginated (response includes `has_more`)."
+    }
+  ],
+  "tools_generated": false,
+  "user_config": {
+    "client_name": {
+      "type": "string",
+      "title": "App name on the authorize screen",
+      "description": "Label shown on the PushEngage authorize page as the requesting app when you log in.",
+      "required": false,
+      "default": "Claude Desktop"
+    },
+    "config_path": {
+      "type": "string",
+      "title": "Token file path (advanced)",
+      "description": "Absolute path where the login token is stored. Leave empty for the default (~/.pushengage/mcp.json). Set it to run more than one PushEngage account side by side.",
+      "required": false,
+      "default": ""
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

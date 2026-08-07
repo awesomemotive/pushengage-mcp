@@ -1,6 +1,10 @@
 # @pushengage/mcp
 
+[![pushengage-mcp MCP server](https://glama.ai/mcp/servers/awesomemotive/pushengage-mcp/badges/score.svg)](https://glama.ai/mcp/servers/awesomemotive/pushengage-mcp)
+
 > Manage your [PushEngage](https://www.pushengage.com/) account from any AI assistant, in plain language.
+
+
 
 [PushEngage](https://www.pushengage.com/) is a push notification platform for web push, mobile app push, WhatsApp, and on-site chat widgets, used to grow subscribers and recover revenue (cart abandonment, price drops, back-in-stock, and more).
 
@@ -52,7 +56,16 @@ Once connected, just describe what you want. A few examples:
 
 Add the server to your client's MCP config. No global install is needed; `npx` fetches it on demand.
 
-### Claude Desktop
+### Claude Desktop (one-click bundle)
+
+The easiest path on Claude Desktop is the MCP Bundle:
+
+1. Download the latest `pushengage-mcp-<version>.mcpb` file from the [GitHub releases page](https://github.com/awesomemotive/pushengage-mcp/releases/latest).
+2. Open it with Claude Desktop (double-click it, or drag it onto the window) and click **Install**.
+
+Everything is bundled — no JSON editing needed. The install dialog optionally lets you set the label shown on the PushEngage authorize screen and a custom token file path (for running multiple accounts).
+
+### Claude Desktop (manual config)
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or the equivalent on your platform:
 
