@@ -26,4 +26,7 @@ coverage/
 # Npm packs
 *.tgz
 
+# MCP Bundle build output
+*.mcpb
+
 temp/

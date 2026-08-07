@@ -42,6 +42,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:mcpb": "node scripts/build-mcpb.mjs",
     "pack": "npm pack",
     "dev": "tsx src/index.ts",
     "dev:watch": "tsx watch src/index.ts",
