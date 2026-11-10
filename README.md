@@ -49,7 +49,7 @@ Once connected, just describe what you want. A few examples:
 ## Requirements
 
 - A [PushEngage](https://www.pushengage.com/) account (free or paid) with at least one site.
-- Node.js 18 or newer (the assistant runs the server via `npx`).
+- Node.js 20 or newer (the assistant runs the server via `npx`).
 - An MCP-capable client (Claude Desktop, Claude Code, Cursor, or any other).
 
 ## Install

@@ -2,27 +2,24 @@
 
 All notable changes to `@pushengage/mcp` are documented in this file.
 
-## [1.1.0] - 2026-11-04
+## [1.1.0] - 2026-11-10
 
 ### Added
 
-- Custom-audience targeting on the send tools: `subscriber_filter` on `pushengage_send_notification` and `pushengage_send_ab_notification`, exposing the dashboard's third audience option ("Send to Custom Audience"). Targets by segment, subscriber attribute, location, device, browser, subscription/engagement date, and sent/view/click counts. Mutually exclusive with `audience_groups`.
-- `pushengage_list_audience_filter_values` — the location and device values recorded on a site, with active-subscriber counts, for the `country` / `state` / `city` / `device` / `device_type` filter fields. Locations are per-site display names rather than ISO codes, so they cannot be enumerated statically.
-- `subscriber_filter.timezone`: date values inside a custom-audience filter (`ts_created`, `ts_last_sent`, `ts_last_click`, `ts_last_view` with an absolute operator, and `dt_gt` / `dt_lt`) are interpreted as **UTC** by the API — the filter branch converts nothing, unlike the legacy criteria branch. Setting `timezone` to an IANA zone reinterprets naive date values from it into UTC before sending, and the response reports each conversion. Values already carrying `Z` or an offset are left as given, and relative windows (`ts_elapsed_*`, which are a count of **minutes**) carry no timezone at all, so they are untouched.
-- `schedule_timezone` on both send tools: give `schedule_date` in your own IANA timezone and it is converted to the site's wall clock before sending, with the response reporting the requested time, the stored time, both UTC offsets, and the UTC equivalent. A bare `schedule_date` is read by the API as the *site's* local time, so without this a time meant in one zone silently scheduled in another. Ambiguous abbreviations (IST, PST, EST) are rejected — `Intl` accepts them but pins them to a fixed offset with no daylight saving.
-- Segment names are accepted wherever a segment rule takes IDs, and are resolved against the site before anything is sent. Attribute keys are verified the same way. An unresolvable reference fails the call instead of dispatching — the API silently drops unknown segment references, and a filter that drops to nothing is treated as "all subscribers", so a mistyped segment name would otherwise push to every subscriber.
+- **Send to a custom audience.** `subscriber_filter` on `pushengage_send_notification` and `pushengage_send_ab_notification` targets by segment, subscriber attribute, location, device, browser, subscription and engagement dates, and sent/view/click counts — the dashboard's "Send to Custom Audience" option. Use it or `audience_groups`, not both.
+- **Segment names, not just IDs.** Names work anywhere a segment rule takes an ID, in the send tools and in `pushengage_create_audience_group`. A name or attribute key that does not exist on the site fails the call, so a typo cannot quietly send to everyone.
+- **`pushengage_list_audience_filter_values`** — the location and device values a site actually has, with subscriber counts, so filters can be built from real values.
+- **Timezones.** `schedule_timezone` lets you give `schedule_date` in your own IANA timezone and have it converted to the site's. `subscriber_filter.timezone` reads the filter's date values in that timezone instead of UTC. Both report what was converted; omit them and nothing changes.
 
 ### Changed
 
-- `pushengage_create_audience_group` shares the same filter schema and resolver, so segment names work there too and the operator rules are identical across all three tools.
-- Subscriber-filter rules now enforce the dashboard's per-field operator matrix (for example `country` accepts only `in` / `nin`; `segments` accepts `in` / `all` / `nin`). Previously any operator was accepted on any field, which the API also accepts but which silently matches nobody.
-- A `key` property on a non-`attributes` rule is now rejected rather than accepted and ignored.
-- Subscriber-filter values are validated against the API's own typing, audited against the Adonis validators: attribute `key` now enforces the API's format and 64-character cap, `dt_gt` / `dt_lt` require an ISO 8601 date, and an absolute comparison on a `ts_*` field requires a date rather than a bare number (the error points at `ts_elapsed_lt` / `ts_elapsed_gt` for relative windows).
-- The singular `segment` field is no longer accepted; use `segments`.
+- **Node 20 or newer is now required** (was 18). Node 18 reached end of life on 30 April 2025; CI covers 20, 22 and 24. Installing on Node 18 warns with `EBADENGINE` — an existing install keeps working, but it is no longer supported or tested.
+- Subscriber-filter rules now follow the dashboard's per-field operator rules, and values are checked before sending, so a combination that would match nobody is rejected rather than accepted.
+- The singular `segment` filter field is no longer accepted — use `segments`.
 
 ### Fixed
 
-- `lhm.plugin.json` is regenerated from the running server, so its tool list and input schemas no longer drift from what the server registers.
+- `lhm.plugin.json` is generated from the running server, so its tool list cannot drift from the tools the server registers.
 
 ## [1.0.0] - 2026-07-23
 
