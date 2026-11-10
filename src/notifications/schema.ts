@@ -1,6 +1,9 @@
 // src/notifications/schema.ts
 import { z } from 'zod';
 
+import { isCallerTimeZone, isPosixSignedZone } from '../datetime/timezone';
+import { SubscriberFilterSchema } from '../subscriberFilter/schema';
+
 // Limits mirror the API's text-length caps.
 const MAX_TITLE_LENGTH = 85;
 const MAX_MESSAGE_LENGTH = 135;
@@ -133,6 +136,24 @@ export const SendNotificationInputObject = z.object({
   schedule_date: ApiDateTimeSchema.optional().describe(
     'Required when status is "schedule". Format: YYYY-MM-DD HH:mm:ss in the site timezone.',
   ),
+  schedule_timezone: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'OPTIONAL. The IANA timezone that `schedule_date` is written in, e.g. "Asia/Kolkata" or ' +
+        '"America/New_York". Set this whenever the user names a timezone, or when you know their ' +
+        "timezone differs from the site's — the notification is then scheduled for the instant " +
+        'they actually meant, and the response reports both wall clocks so you can tell them what ' +
+        'was scheduled. ' +
+        "Omit it and `schedule_date` is taken as the SITE's local time, which is what the API " +
+        'assumes. Requires schedule_date; cannot be combined with recurring_schedule, nor with ' +
+        "send_in_subscribers_timezone (that flag already makes schedule_date each subscriber's own " +
+        'local time, so there is nothing to convert). ' +
+        'Must be a full IANA zone name — abbreviations like "IST", "PST" or "EST" are ambiguous ' +
+        'and are rejected, as are the Etc/GMT±N zones, whose sign is inverted.',
+    ),
   site_id: z.number().int().positive().optional().describe('Override the currently selected site'),
   image_url: z
     .string()
@@ -173,8 +194,30 @@ export const SendNotificationInputObject = z.object({
     .describe(
       'Send to one or more predefined audience groups (1-20 group IDs). Each ID refers to ' +
         'an audience group already configured in PushEngage. Omit this field to send to all ' +
-        'subscribers. Only set this when the user mentions a saved/predefined audience group.',
+        'subscribers. Only set this when the user mentions a saved/predefined audience group. ' +
+        'Mutually exclusive with subscriber_filter.',
     ),
+  subscriber_filter: SubscriberFilterSchema.optional().describe(
+    'OPTIONAL. The dashboard\'s "Send to Custom Audience": personalize who receives this ' +
+      'notification based on segments, location, device and more. Mutually exclusive with ' +
+      'audience_groups; omit both for "Send to All Subscribers". ' +
+      'A 2-D expression: `value` is a list of rule-groups, rules inside a group are AND-ed, and ' +
+      'the top-level `op` combines the groups ("or" by default). ' +
+      'Segment rules accept segment NAMES and are resolved automatically, so ' +
+      '{ field: "segments", op: "in", value: ["Sports Fans"] } works without a lookup. ' +
+      'For country, state, city, device or device_type values call ' +
+      "pushengage_list_audience_filter_values first; for an attributes rule's `key` call " +
+      'pushengage_list_attributes first. Both are site-specific, and a guessed value saves ' +
+      'successfully but reaches the wrong people. ' +
+      'Every segment reference and attribute key is verified before anything is sent; an ' +
+      'unresolvable one fails the call rather than silently changing who receives the push. ' +
+      'Example — mobile subscribers in the Sports Fans segment: ' +
+      '{ op: "or", value: [[{ field: "segments", op: "in", value: ["Sports Fans"] }, ' +
+      '{ field: "device", op: "in", value: ["mobile"] }]] }. ' +
+      'Example — subscribed in the last 7 days on a paid plan: ' +
+      '{ op: "or", value: [[{ field: "ts_created", op: "ts_elapsed_lt", value: 10080 }, ' +
+      '{ field: "attributes", key: "plan", op: "ne", value: "free" }]] }.',
+  ),
   android_push: AndroidPushSchema.optional().describe(
     'Android-specific options. Requires channel_id when set. Only when the user explicitly asks.',
   ),
@@ -200,7 +243,108 @@ export const SendNotificationInputObject = z.object({
   ),
 });
 
+/**
+ * `notification_criteria` carries exactly one targeting mode, and `getCriteriaFilterType` on the
+ * API checks for the `audience` key BEFORE the `filter` key. Sending both would therefore
+ * validate as audience-group targeting and drop the filter via `stripUnknown` — no error, just
+ * the wrong audience. Reject the combination here, since the API will not.
+ */
+function refineAudienceExclusivity(
+  data: { audience_groups?: unknown; subscriber_filter?: unknown },
+  ctx: z.RefinementCtx,
+): void {
+  if (data.audience_groups && data.subscriber_filter) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['subscriber_filter'],
+      message:
+        'audience_groups and subscriber_filter are mutually exclusive — a notification carries one ' +
+        'targeting mode. Use audience_groups for a saved audience group, or subscriber_filter for ' +
+        'ad-hoc targeting, not both.',
+    });
+  }
+}
+
+/**
+ * `schedule_timezone` only means something next to a one-shot `schedule_date` that the API reads
+ * as a SITE-local wall clock. Two cases are rejected rather than ignored, because in both the
+ * `schedule_date` is not site-local at all and converting it would move the send:
+ *
+ *  - `recurring_schedule`: the recurrence carries times AND weekdays, so shifting a time across
+ *    midnight would change which days fire.
+ *  - `send_in_subscribers_timezone`: the API stores this `schedule_date` verbatim as
+ *    `notification_criteria.tz_scheduled_time` (pushengage-adonis-node-api,
+ *    app/Formatters/Dashboard/Notification.js:348) and fans out one child notification per
+ *    subscriber timezone at THAT wall clock. The value is deliberately zone-less — "09:00 where
+ *    each subscriber is" — so there is no site clock to convert into, and converting would shift
+ *    every recipient. Caught in review of PR #287.
+ *
+ * Both are a refusal rather than a silent skip: a conversion this subtle doing nothing without
+ * saying so is the failure mode this whole module exists to remove.
+ */
+function refineScheduleTimezone(
+  data: {
+    schedule_timezone?: string;
+    schedule_date?: string;
+    recurring_schedule?: unknown;
+    send_in_subscribers_timezone?: boolean;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (!data.schedule_timezone) return;
+  if (!data.schedule_date) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['schedule_timezone'],
+      message:
+        'schedule_timezone only applies to schedule_date; set status="schedule" and a schedule_date.',
+    });
+  }
+  if (data.recurring_schedule) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['schedule_timezone'],
+      message:
+        'schedule_timezone cannot be combined with recurring_schedule. Recurring times and days are ' +
+        "interpreted in the site's timezone; convert them yourself and state the site timezone to the user.",
+    });
+  }
+  if (data.send_in_subscribers_timezone) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['schedule_timezone'],
+      message:
+        'schedule_timezone cannot be combined with send_in_subscribers_timezone. With that flag the ' +
+        "schedule_date is each SUBSCRIBER's local wall clock, not the site's, so there is nothing to " +
+        'convert — pass the time you want them to see (e.g. "09:00:00" for 9am local to each ' +
+        'subscriber) and drop schedule_timezone.',
+    });
+  }
+  if (isPosixSignedZone(data.schedule_timezone)) {
+    const tz = data.schedule_timezone.trim();
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['schedule_timezone'],
+      message:
+        `"${tz}" means the opposite of what it reads like: the Etc/GMT±N zones use the POSIX sign ` +
+        `convention, so "${tz}" is ${tz.charAt(7) === '+' ? 'BEHIND' : 'AHEAD OF'} UTC. Name the ` +
+        'place instead — "Asia/Kolkata", "Europe/London", "America/New_York" — which cannot be read ' +
+        'backwards.',
+    });
+  } else if (!isCallerTimeZone(data.schedule_timezone)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['schedule_timezone'],
+      message:
+        `"${data.schedule_timezone}" is not a recognised IANA timezone. Use a full zone name such as ` +
+        '"Asia/Kolkata", "Europe/London" or "America/New_York" — abbreviations like IST or PST are ambiguous.',
+    });
+  }
+}
+
 export const SendNotificationInputSchema = SendNotificationInputObject.superRefine((data, ctx) => {
+  refineAudienceExclusivity(data, ctx);
+  refineScheduleTimezone(data, ctx);
   if (data.status === 'schedule' && !data.schedule_date) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -332,12 +476,19 @@ export function toApiBody(input: SendNotificationInput): ApiNotificationBody {
   if (input.android_push) body.android_push = input.android_push;
   if (input.ios_push) body.ios_push = input.ios_push;
 
-  // notification_criteria is a discriminated shape on the API side. We only expose
-  // the audience-group mode here; custom segment/geo/device targeting is deliberately
-  // not surfaced to the LLM. Omit notification_criteria entirely for "Send to All
-  // Subscribers".
+  // notification_criteria is a discriminated shape on the API side, keyed by which top-level
+  // key is present: `audience` → audience groups, `filter` → ad-hoc targeting, neither → the
+  // legacy segment shape. The schema guarantees at most one of the two is set, and the filter
+  // branch's validator accepts ONLY the `filter` key, so these never combine. Omit
+  // notification_criteria entirely for "Send to All Subscribers".
+  //
+  // Any segment names in `subscriber_filter` must already be resolved to ids by
+  // resolveSubscriberFilter before this runs — see the note there on why an unresolved
+  // reference widens the audience instead of narrowing it.
   if (input.audience_groups) {
     body.notification_criteria = { audience: { groups: input.audience_groups } };
+  } else if (input.subscriber_filter) {
+    body.notification_criteria = { filter: input.subscriber_filter };
   }
 
   return body;
@@ -425,6 +576,17 @@ export const SendAbNotificationInputObject = z.object({
   schedule_date: ApiDateTimeSchema.optional().describe(
     'Required when status is "schedule". Format: YYYY-MM-DD HH:mm:ss in the site timezone.',
   ),
+  schedule_timezone: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'OPTIONAL. The IANA timezone `schedule_date` is written in, e.g. "Asia/Kolkata". Same ' +
+        "behaviour as pushengage_send_notification's schedule_timezone: the value is converted to " +
+        "the site's local time before sending, and the response reports both wall clocks. Omit it " +
+        "and schedule_date is taken as the site's local time.",
+    ),
   site_id: z.number().int().positive().optional().describe('Override the currently selected site'),
   audience_groups: z
     .array(z.number().int().positive())
@@ -434,8 +596,14 @@ export const SendAbNotificationInputObject = z.object({
     .describe(
       'Send to one or more predefined audience groups (1-20 group IDs). Applies to both ' +
         'variants. Omit to send to all subscribers. Only set when the user mentions a ' +
-        'saved/predefined audience group.',
+        'saved/predefined audience group. Mutually exclusive with subscriber_filter.',
     ),
+  subscriber_filter: SubscriberFilterSchema.optional().describe(
+    'OPTIONAL. "Send to Custom Audience" applied to BOTH variants — same shape and same ' +
+      "name-resolution behaviour as pushengage_send_notification's subscriber_filter: segment " +
+      'names resolve to ids, and segment and attribute references are verified before anything ' +
+      'is sent. Mutually exclusive with audience_groups; omit both to send to all subscribers.',
+  ),
   tags: z
     .array(z.string().trim().min(1).max(MAX_TAG_LENGTH))
     .max(MAX_TAGS)
@@ -486,6 +654,8 @@ export const SendAbNotificationInputObject = z.object({
 
 export const SendAbNotificationInputSchema = SendAbNotificationInputObject.superRefine(
   (data, ctx) => {
+    refineAudienceExclusivity(data, ctx);
+    refineScheduleTimezone(data, ctx);
     if (data.status === 'schedule' && !data.schedule_date) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -579,8 +749,12 @@ export function toAbApiBody(input: SendAbNotificationInput): ApiAbNotificationBo
 
   if (input.schedule_date) body.valid_from = input.schedule_date;
   if (input.tags) body.tags = input.tags;
+  // Same discriminated shape as the generic send — `upsertAb` binds the identical
+  // `notificationCriteria` schema, so A/B targeting is the same contract, not a parallel one.
   if (input.audience_groups) {
     body.notification_criteria = { audience: { groups: input.audience_groups } };
+  } else if (input.subscriber_filter) {
+    body.notification_criteria = { filter: input.subscriber_filter };
   }
 
   return body;

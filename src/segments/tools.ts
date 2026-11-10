@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { errorResult } from '../http/errors';
 import { resolveContext } from '../context';
+import { segmentUrl } from '../dashboardUrl';
 import { CreateSegmentOutput, SegmentsListOutput } from '../output';
 import { createSegment, listSegments } from './api';
 import {
@@ -67,7 +68,7 @@ export function registerSegmentTools(server: McpServer): void {
         const { client, siteId, config } = await resolveContext(input.site_id);
         const body = toCreateSegmentApiBody(input);
         const created = await createSegment(client, siteId, body);
-        const viewUrl = `${config.dashboard_url}/sites/${siteId}/audiences/segments/${created.segment_id ?? ''}`;
+        const viewUrl = segmentUrl(config.dashboard_url, created.segment_id);
         const payload = {
           segment_id: created.segment_id,
           segment_name: created.segment_name ?? body.segment_name,

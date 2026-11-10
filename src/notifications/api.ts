@@ -30,8 +30,9 @@ export async function createNotification(
 
 /**
  * The A/B notification response carries the A-variant fields at the top level plus an
- * `ab_notification_id` that identifies the test pair. The API returns both ids via the
- * standard envelope, so callers can deep-link to the test detail page.
+ * `ab_notification_id` that identifies the test pair. Both are returned to the caller, but a
+ * dashboard link must use `notification_id` — the app has no route that takes the pair id (QA N1
+ * on PR #287).
  */
 export type CreatedAbNotification = CreatedNotification & {
   ab_notification_id?: number;

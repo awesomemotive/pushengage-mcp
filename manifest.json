@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "pushengage-mcp",
   "display_name": "PushEngage",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Send push notifications, build audiences, and view campaign analytics from PushEngage.",
   "long_description": "Connects your AI assistant to your [PushEngage](https://www.pushengage.com/) account so you can send and schedule web push notifications, run A/B tests, build segments and audience groups, inspect campaign analytics, and manage site settings — just by asking.\n\nNo API key is needed: the first time you use a tool, the server opens your browser to the PushEngage dashboard where you click **Authorize**. The access token is stored locally on your machine (`~/.pushengage/mcp.json`, permissions `0600`) and never leaves it.",
   "author": {

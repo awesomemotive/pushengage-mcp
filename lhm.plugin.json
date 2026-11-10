@@ -1,0 +1,2711 @@
+{
+  "author": "PushEngage",
+  "authorUrl": "https://www.pushengage.com",
+  "description": "PushEngage Model Context Protocol (MCP) server. Lets AI assistants like Claude Desktop and Cursor authenticate against PushEngage and send push notifications on your behalf.",
+  "homepage": "https://github.com/awesomemotive/pushengage-mcp",
+  "icon": "🔔",
+  "identifier": "pushengage-mcp",
+  "name": "PushEngage MCP",
+  "prompts": [],
+  "resources": [],
+  "tags": [
+    "pushengage",
+    "mcp",
+    "model-context-protocol",
+    "push-notifications",
+    "web-push",
+    "ai-assistant",
+    "claude",
+    "claude-desktop",
+    "cursor",
+    "marketing-automation"
+  ],
+  "tools": [
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "description": "Opens a browser window to the PushEngage dashboard. After you click Authorize, an access token is stored locally and used for subsequent calls; the expiry is shown in the result. Requires a browser on the local machine. In headless or SSH environments the authorization URL is printed to the terminal so it can be opened manually.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_auth_login",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "authorized": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Log in to PushEngage"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false
+      },
+      "description": "Returns the current login state: authenticated (bool), expires_at (token expiry ISO string), current_site_id, api_url, dashboard_url, and client_name. Use this to check whether pushengage_auth_login is needed before making other calls.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_auth_status",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "api_url": {
+            "type": "string"
+          },
+          "dashboard_url": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "current_site_id": {
+            "type": "number"
+          },
+          "client_name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Check authentication and site status"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "description": "Revokes the current PushEngage session on the server and deletes the locally stored token. After this call, all site-scoped tools require pushengage_auth_login before they can be used again.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_auth_logout",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "server_session_revoked": {
+            "type": ["boolean", "null"]
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Log out"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists PushEngage sites the authenticated user can access. Returns site_id, site_name, site_url, and site_status. Also returns current_site_id so the assistant can see which site is already active without calling pushengage_auth_status. When the user asks to send a notification linking to their site's homepage, use site_url as the notification's url field.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_sites",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "sites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          },
+          "current_site_id": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List sites"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "description": "Sets the current site used by all site-scoped tools (pushengage_send_notification, pushengage_list_segments, pushengage_get_analytics_summary, pushengage_list_drip_campaigns, etc.) when no site_id is provided. Persists across MCP restarts. Call pushengage_list_sites first to get a valid site_id.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "PushEngage site_id from pushengage_list_sites"
+          }
+        },
+        "required": ["site_id"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_select_site",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "current_site_id": {
+            "type": "number"
+          },
+          "site_name": {
+            "type": "string"
+          },
+          "site_url": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Select current site"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Returns the current site's details, matching the dashboard's Site Details page: name, URL, image, timezone, geolocation toggle, and the \"Powered By PushEngage\" branding toggle.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_get_site_details",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "number"
+          },
+          "site_name": {
+            "type": "string"
+          },
+          "site_url": {
+            "type": "string"
+          },
+          "site_image": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "enable_geolocation": {
+            "type": "boolean"
+          },
+          "remove_powered_by_pushengage": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Get site details"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "description": "Updates the current site's details. Pass only the fields you want to change: site_name (Site Name), site_url (Site URL), timezone (Website Time Zone, an IANA name), enable_geolocation (Enable Geolocation), and/or remove_powered_by_pushengage (Remove \"Powered By PushEngage\", which needs a paid plan). Provide at least one field. Returns the updated site details.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "site_name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 150,
+            "description": "Site Name. 3-150 characters."
+          },
+          "site_url": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "Site URL. A full http(s) URL, e.g. https://example.com."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Website Time Zone as an IANA name, e.g. \"America/New_York\" or \"Asia/Kolkata\"."
+          },
+          "enable_geolocation": {
+            "type": "boolean",
+            "description": "Enable Geolocation. Personalizes notifications based on the subscriber's location and timezone."
+          },
+          "remove_powered_by_pushengage": {
+            "type": "boolean",
+            "description": "Remove \"Powered By PushEngage\" branding from notifications. Requires a paid (white-label) plan; the API rejects it otherwise."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_update_site_details",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "number"
+          },
+          "site_name": {
+            "type": "string"
+          },
+          "site_url": {
+            "type": "string"
+          },
+          "site_image": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "enable_geolocation": {
+            "type": "boolean"
+          },
+          "remove_powered_by_pushengage": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Update site details"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Returns the current site's campaign default settings: utm_parameters (enabled + source/medium/campaign/term/content), fallback_notification (title/message/url), fallback_attributes (city/country), and default_expiry (broken into total_seconds + days/hours/minutes). These are the defaults applied to push campaigns, matching the dashboard's Campaign Defaults page.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_get_campaign_defaults",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "utm_parameters": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          },
+          "fallback_notification": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          },
+          "fallback_attributes": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          },
+          "default_expiry": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Get campaign defaults"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "description": "Updates one or more of the current site's campaign default settings. Pass only the groups and fields you want to change: utm_parameters, fallback_notification, fallback_attributes, and/or default_expiry. The tool reads the current values and merges your changes, so partial edits are fine (e.g. change just utm_parameters.source, or set default_expiry to {days:7}). default_expiry is given as days/hours/minutes (omitted components count as 0; total must be between 1 minute and 28 days). When utm_parameters.enabled is true, source/medium/campaign must be non-empty after the merge. Provide at least one group. Returns the updated settings.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "utm_parameters": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether UTM parameters are appended to campaign URLs. Default stays as-is."
+              },
+              "source": {
+                "type": "string",
+                "maxLength": 80,
+                "description": "utm_source. Required when enabled."
+              },
+              "medium": {
+                "type": "string",
+                "maxLength": 80,
+                "description": "utm_medium. Required when enabled."
+              },
+              "campaign": {
+                "type": "string",
+                "maxLength": 80,
+                "description": "utm_campaign. Required when enabled."
+              },
+              "term": {
+                "type": "string",
+                "maxLength": 80,
+                "description": "utm_term. Optional."
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 120,
+                "description": "utm_content. Optional."
+              }
+            },
+            "additionalProperties": false,
+            "description": "UTM defaults appended to campaign URLs. Provide only the fields you want to change."
+          },
+          "fallback_notification": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "maxLength": 85,
+                "description": "Fallback notification title."
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 135,
+                "description": "Fallback notification message."
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 1600,
+                "description": "Fallback notification landing URL (https://...)."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Notification shown if the browser cannot fetch the sent notification. Title, message, and URL are all required by the API, so any you omit are kept from the current values."
+          },
+          "fallback_attributes": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string",
+                "maxLength": 120,
+                "description": "Fallback city. May be empty."
+              },
+              "country": {
+                "type": "string",
+                "maxLength": 120,
+                "description": "Fallback country. May be empty."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Fallback subscriber city/country used when the browser can't resolve them."
+          },
+          "default_expiry": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 28,
+                "description": "Days component (0-28)."
+              },
+              "hours": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 23,
+                "description": "Hours component (0-23)."
+              },
+              "minutes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 59,
+                "description": "Minutes component (0-59)."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Default notification expiry. Set as days/hours/minutes; omitted components count as 0. Total must be between 1 minute and 28 days."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_update_campaign_defaults",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "utm_parameters": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          },
+          "fallback_notification": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          },
+          "fallback_attributes": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          },
+          "default_expiry": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Update campaign defaults"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Returns the current site's Service Worker Settings (from the Advanced Settings page), using the dashboard labels: enable_service_worker_registration (\"Enable the service worker registration from PushEngage\"), enable_service_worker_in_subfolder (\"Enable addition of service worker in another sub-folder\"), and service_worker_file_path (\"Path for service worker file\").",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_get_service_worker_settings",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "enable_service_worker_registration": {
+            "type": "boolean"
+          },
+          "enable_service_worker_in_subfolder": {
+            "type": "boolean"
+          },
+          "service_worker_file_path": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Get service worker settings"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "description": "Updates the current site's Service Worker Settings. Pass only the fields you want to change: enable_service_worker_registration, enable_service_worker_in_subfolder, and/or service_worker_file_path. The tool reads the current values and merges your changes. When enable_service_worker_registration is true, service_worker_file_path must be non-empty after the merge. Provide at least one field. Returns the updated settings.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "enable_service_worker_registration": {
+            "type": "boolean",
+            "description": "Enable the service worker registration from PushEngage. Disable it only if your site already registers its own service worker. When true, service_worker_file_path is required."
+          },
+          "enable_service_worker_in_subfolder": {
+            "type": "boolean",
+            "description": "Enable addition of service worker in another sub-folder."
+          },
+          "service_worker_file_path": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Path for service worker file. Required when the service worker registration is enabled."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_update_service_worker_settings",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "enable_service_worker_registration": {
+            "type": "boolean"
+          },
+          "enable_service_worker_in_subfolder": {
+            "type": "boolean"
+          },
+          "service_worker_file_path": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Update service worker settings"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists segments on the current site, paginated (response includes `has_more`). Each item carries segment_id, name, current subscriber count, status, and any URL matching criteria.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "How many segments to return in this page. Min 1, max 100, default 10. To browse past the first 100, increase `page` instead of asking for a larger limit."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number (1-indexed) for paginating beyond the first batch. e.g. with limit=100 the second page (segments 101–200) is page=2."
+          },
+          "name_contains": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional case-insensitive substring filter on segment_name."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_segments",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "last_page": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List segments"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "description": "Creates a new segment on the current site. Required: segment_name. Optionally pass segment_criteria with URL `include` and/or `exclude` rules to define what subscribers belong to the segment — each rule is `{ rule: \"start\" | \"exact\" | \"contains\", value: \"<url>\" }`. By default, segment criteria are evaluated only when a visitor subscribes to push notifications. Set add_segment_on_page_load=true (Segment on Page Visit) to evaluate those criteria on every page visit instead, so segment membership can change as subscribers browse the site. Only include segment_criteria and add_segment_on_page_load when the user explicitly describes the matching rules.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "segment_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150,
+            "description": "Segment display name. 1–150 characters."
+          },
+          "segment_criteria": {
+            "type": "object",
+            "properties": {
+              "include": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rule": {
+                      "type": "string",
+                      "enum": ["start", "exact", "contains"],
+                      "description": "How the URL match is evaluated: \"start\" — the subscriber's page URL starts with `value`; \"exact\" — the URL exactly equals `value`; \"contains\" — the URL contains `value`."
+                    },
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048,
+                      "description": "The URL or URL fragment to match against, per the chosen rule."
+                    }
+                  },
+                  "required": ["rule", "value"],
+                  "additionalProperties": false
+                },
+                "description": "URL rules whose match adds a subscriber to this segment. May be empty."
+              },
+              "exclude": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/properties/segment_criteria/properties/include/items"
+                },
+                "description": "URL rules whose match removes (or prevents adding) a subscriber from this segment. May be empty."
+              }
+            },
+            "additionalProperties": false,
+            "description": "URL-based include/exclude rules that decide which subscribers belong to this segment. Omit to create a name-only segment that the user populates later via the dashboard or workflows. When provided, at least one of `include` or `exclude` must have rules."
+          },
+          "add_segment_on_page_load": {
+            "type": "boolean",
+            "default": false,
+            "description": "Segment on Page Visit. By default (false), segment criteria (such as URL rules) are evaluated only when a visitor subscribes to push notifications. Set to true to evaluate those criteria on every page visit instead, so segment membership can change as subscribers browse your site."
+          },
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          }
+        },
+        "required": ["segment_name"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_create_segment",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "segment_id": {
+            "type": "number"
+          },
+          "segment_name": {
+            "type": "string"
+          },
+          "segment_criteria": {},
+          "add_segment_on_page_load": {
+            "type": "boolean"
+          },
+          "view_url": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Create a segment"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists subscriber attributes (custom keys set on subscribers via the JS SDK) on the current site, paginated (response includes `has_more`). Use this to discover attribute `key` values before constructing an audience-group filter rule with field=\"attributes\".",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "How many attributes to return in this page. Min 1, max 100, default 10. To browse past the first 100, increase `page` instead of asking for a larger limit."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number (1-indexed) for paginating beyond the first batch."
+          },
+          "key_contains": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional substring filter on the attribute `key`. Maps to API `key_like`. Use this when looking up an attribute by name (e.g. searching for \"plan\" to find the \"plan\" attribute key)."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_attributes",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "last_page": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List subscriber attributes"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "description": "Creates a new subscriber attribute on the current site. Required: `name` (human-readable label, e.g. \"Customer Plan\") and `key` (machine identifier, e.g. \"plan\"). The `key` must start with a letter and contain only letters, numbers, hyphens, and underscores. The created `key` becomes a usable value for audience-group rules with field=\"attributes\" (the rule's `key` property). PushEngage caps each site at 50 attributes; the API returns 422 if the limit is exceeded.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Human-readable attribute name shown in the dashboard. 1–128 chars. e.g. \"Customer Plan\", \"Sign-up Source\"."
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+            "description": "The machine identifier used in the JavaScript SDK and in audience-group rules. Must start with a letter and only contain letters, numbers, hyphens, and underscores. Max 64 chars. e.g. \"plan\", \"signup_source\", \"lifetime-value\". This is the same key you pass as `key` on an audience-group rule with field=\"attributes\"."
+          },
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          }
+        },
+        "required": ["name", "key"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_create_attribute",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "status": {},
+          "view_url": {
+            "type": "string"
+          },
+          "use_with_audience_group_rule": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Create a subscriber attribute"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists the location and device values recorded on this site, with how many active subscribers carry each one. These are the values a `subscriber_filter` rule can use for the country, state, city, device and device_type fields — the \"Custom Audience\" targeting on the send tools and pushengage_create_audience_group. Call this BEFORE writing a rule on any of those five fields. Locations are display names taken from the subscribers themselves, not ISO codes, and they differ per site — \"US\", \"USA\" and \"United States\" are not interchangeable, and a guessed spelling produces a notification that saves successfully and reaches the wrong people. The subscriber counts also show whether a filter is worth sending at all. For the other two filter vocabularies use pushengage_list_segments (segment names) and pushengage_list_attributes (attribute keys).",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["country", "state", "city", "device", "device_type"]
+            },
+            "minItems": 1,
+            "maxItems": 5,
+            "default": ["country"],
+            "description": "Which filter fields to list values for. Each name is a `field` you can use in a subscriber_filter rule. \"country\", \"state\" and \"city\" are the subscriber locations recorded on this site — display names taken from the subscribers themselves, not ISO codes, and different on every site. \"device\" (mobile/tablet/desktop) and \"device_type\" (the browser or app platform) have fixed vocabularies, so for those this reports which values this site actually has subscribers on."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 50,
+            "description": "How many values to return PER field, ordered by subscriber count descending. Min 1, max 500, default 50. A site can have thousands of cities, so this caps the response; each field reports `total_values` and `truncated` so you can tell when the list was cut short."
+          },
+          "value_contains": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional case-insensitive substring filter on the value names, applied across every requested field. Use it to check one value (\"do I have subscribers in Pune?\") instead of pulling the whole list."
+          },
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_audience_filter_values",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "fields": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List values for custom-audience filter fields"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists audience groups on the current site, paginated (response includes `has_more`). Use this to look up audience-group IDs when the user references a group by name; those IDs are what pushengage_send_notification / pushengage_send_ab_notification accept in their `audience_groups` field.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "How many audience groups to return in this page. Min 1, max 100, default 10. To browse past the first 100, increase `page` instead of asking for a larger limit."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number (1-indexed) for paginating beyond the first batch. e.g. with limit=100 the second page (101–200) is page=2."
+          },
+          "name_contains": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional substring filter on the audience-group name. Maps to API `name_like`."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_audience_groups",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "last_page": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "audience_groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List audience groups"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "description": "Creates a new audience group on the current site. Required: `name` and `filter`. The `filter` is a subscriber-filter expression — { op: \"or\" | \"and\" (default \"or\"), value: 2-D array of rule groups }. Each rule is { field, op, value?, key? }. Rules WITHIN a group are AND-ed; groups in `value` are combined with the top-level `op`. See the inputSchema field descriptions for the supported `field` and `op` enums. Common patterns: \"Mobile subscribers\" → filter={ op: \"or\", value: [[{ field: \"device\", op: \"in\", value: [\"mobile\"] }]] }. \"Subscribed in the last 7 days\" → filter={ op: \"or\", value: [[{ field: \"ts_created\", op: \"ts_elapsed_lt\", value: 604800 }]] }. \"Highly engaged\" (≥20 sent AND ≥2 clicks) → filter={ op: \"or\", value: [[{ field: \"sent_count\", op: \"gt\", value: 20 }, { field: \"click_count\", op: \"gt\", value: 2 }]] }. \"Sports Fans segment on mobile\" → filter={ op: \"or\", value: [[{ field: \"segments\", op: \"in\", value: [\"Sports Fans\"] }, { field: \"device\", op: \"in\", value: [\"mobile\"] }]] } — segment NAMES are resolved to ids automatically. Call pushengage_list_audience_filter_values before any country/state/city/device/device_type rule and pushengage_list_attributes before any attributes rule: those values are site-specific, and a guessed one saves successfully but matches nobody. Only set description and complex filters when the user explicitly describes them.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150,
+            "description": "Audience-group display name. 1–150 chars."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional human-readable description, up to 256 chars."
+          },
+          "filter": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": ["or", "and"],
+                "default": "or",
+                "description": "How groups in `value` combine: \"or\" (default) means a subscriber matches if ANY group matches; \"and\" means EVERY group must match. Rules WITHIN a group are always AND-ed."
+              },
+              "value": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "enum": [
+                          "attributes",
+                          "city",
+                          "click_count",
+                          "country",
+                          "device",
+                          "device_token_hash",
+                          "device_type",
+                          "profile_id",
+                          "segments",
+                          "sent_count",
+                          "state",
+                          "ts_created",
+                          "ts_last_click",
+                          "ts_last_sent",
+                          "ts_last_view",
+                          "view_count"
+                        ],
+                        "description": "Which subscriber property to match. Each field accepts only certain operators — see `op`."
+                      },
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "dt_gt",
+                          "dt_lt",
+                          "eq",
+                          "exists",
+                          "gt",
+                          "gte",
+                          "in",
+                          "lt",
+                          "lte",
+                          "ne",
+                          "nin",
+                          "not_exists",
+                          "ts_elapsed_gt",
+                          "ts_elapsed_lt"
+                        ],
+                        "description": "Comparison operator. Allowed values depend on `field`: country/state/city/device/device_type → in, nin. segments → in (any of), all (all of), nin (none of). sent_count/view_count/click_count → eq, lt, gt, lte, gte. ts_created/ts_last_sent/ts_last_view/ts_last_click → lt (before), gt (after), ts_elapsed_lt (in the last N seconds), ts_elapsed_gt (older than N seconds). profile_id/device_token_hash → in. attributes → any operator, including exists / not_exists."
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": ["string", "number", "boolean"]
+                            },
+                            "minItems": 1
+                          }
+                        ],
+                        "description": "The match value. Omit entirely for exists / not_exists. Array for in / nin / all. Positive integer seconds for ts_elapsed_gt / ts_elapsed_lt. For segments, pass segment NAMES as strings (resolved automatically) or numeric segment IDs."
+                      },
+                      "key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Required ONLY when field=\"attributes\" — the attribute key to look up. Call pushengage_list_attributes to discover valid keys. Must be omitted for every other field."
+                      }
+                    },
+                    "required": ["field", "op"],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 50
+                },
+                "minItems": 1,
+                "maxItems": 15,
+                "description": "2-D array: outer is a list of rule-groups (max 15), each inner group is an AND-ed list of rules (1–50). With the default op=\"or\", a subscriber matches if any group's rules all match."
+              }
+            },
+            "required": ["value"],
+            "additionalProperties": false,
+            "description": "Required. The subscriber-filter expression that decides which subscribers belong to this group. Use SubscriberFilterSchema: an outer op (\"or\"/\"and\") + a 2-D `value` array (groups of AND-ed rules). Each rule is { field, op, value?, key? }. Example — \"all mobile subscribers\": { op: \"or\", value: [[{ field: \"device\", op: \"in\", value: [\"mobile\"] }]] }. Example — \"subscribed in the last 7 days\": { op: \"or\", value: [[{ field: \"ts_created\", op: \"ts_elapsed_lt\", value: 604800 }]] }. (604800 = 7 × 24 × 3600 seconds.)"
+          },
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          }
+        },
+        "required": ["name", "filter"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_create_audience_group",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "filter": {},
+          "view_url": {
+            "type": "string"
+          },
+          "use_with_send_notification": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Create an audience group"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists push notifications on the current site, newest first, paginated (response includes `has_more`). Use this to discover notification IDs and review past or upcoming sends. Set include_analytics=true only when the user asks for stats — it costs an extra lookup and adds rolled-up counts and goal conversions to each row. Each item carries content, status, targeting criteria, and delivery stats; the criteria.audience_groups ids are reusable as the send tools' audience_groups input, and absent criteria means the notification went to all subscribers.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "How many notifications to return in this page. Min 1, max 100, default 10. To browse past the first 100, increase `page` instead of asking for a larger limit."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number (1-indexed) for paginating beyond the first batch."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["all", "sent", "scheduled", "draft"],
+            "default": "all",
+            "description": "Filter by status, matching the dashboard tabs: \"sent\" (includes currently sending), \"scheduled\" (includes active and paused recurring notifications), \"draft\" (includes archived). \"all\" (default) returns every status."
+          },
+          "sent_after": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Only notifications sent on or after this date (YYYY-MM-DD, site timezone). Must be 2017-07-01 or later, and must be paired with sent_before."
+          },
+          "sent_before": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Only notifications sent on or before this date (YYYY-MM-DD, site timezone). Must be paired with sent_after and be on or after it."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 36
+            },
+            "minItems": 1,
+            "maxItems": 5,
+            "description": "Only notifications carrying at least one of these tags (up to 5)."
+          },
+          "exclude_tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 36
+            },
+            "minItems": 1,
+            "maxItems": 5,
+            "description": "Exclude notifications carrying any of these tags (up to 5)."
+          },
+          "include_analytics": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, merge in full delivery analytics (A/B variant totals and subscriber-timezone child sends roll up into the parent row) and goal conversions (goal_count/goal_value per row). Costs extra lookups; only set it when the user asks for stats/performance."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_notifications",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "last_page": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "notifications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List notifications"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "description": "Creates and sends a push notification on the current site. Required fields: title, message, url. Do not add optional fields (tags, image_url, utm_params, audience_groups, actions, etc.) unless the user explicitly asks for them — for example, do not infer tags from the notification topic. Delivery modes (mutually exclusive — pick AT MOST one): (a) status=\"schedule\" + schedule_date for a one-shot scheduled send; (b) pass recurring_schedule { days, times, start_date, end_date } for a recurring/repeating notification — leave status at \"sent\" (default) to activate the recurrence, or use \"draft\" to save without activating; (c) when scheduling one-shot, optionally pass send_in_subscribers_timezone=true to deliver at the scheduled wall-clock time in each subscriber's local timezone (only when the user explicitly asks, e.g. \"send at 9am in their timezone\"). Otherwise the notification is sent immediately. Use status=\"draft\" to save without sending or activating. Audience — the three options the dashboard offers, pick AT MOST one (they are mutually exclusive): omit both fields for \"Send to All Subscribers\"; pass `audience_groups` (1-20 predefined audience-group IDs) for \"Send to Audience Group\" when the user names a saved group; or pass `subscriber_filter` for \"Send to Custom Audience\" — targeting by segment, attribute, location, device, browser, subscription or engagement date, or sent/view/click counts. Segment names in subscriber_filter are resolved automatically, so \"send to my Sports Fans segment\" needs no lookup — but call pushengage_list_audience_filter_values first for any country/state/city/device/device_type value, and pushengage_list_attributes first for any attribute `key`, because those are site-specific and a guessed value produces a notification that saves successfully and reaches the wrong people. When the user asks to use the site URL, call pushengage_list_sites and use the current site's site_url.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 85,
+            "description": "Notification title"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 135,
+            "description": "Notification message body"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Destination URL when the subscriber clicks the notification"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["sent", "schedule", "draft"],
+            "default": "sent",
+            "description": "Send now (sent), schedule for later (schedule), or save without sending (draft)"
+          },
+          "schedule_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+            "description": "Required when status is \"schedule\". Format: YYYY-MM-DD HH:mm:ss in the site timezone."
+          },
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site"
+          },
+          "image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Small notification icon. Only when the user explicitly asks for an image."
+          },
+          "big_image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Large hero image. Only when the user explicitly asks for a big image."
+          },
+          "expire_in": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 2419200,
+            "description": "Expiry in seconds (60–2419200). Only when the user explicitly asks."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 36
+            },
+            "maxItems": 5,
+            "description": "Up to 5 tags, 36 chars each. Only when the user explicitly asks for tags."
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "image_url": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "required": ["label", "url"],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 2,
+            "description": "Action buttons. Only when the user explicitly asks."
+          },
+          "utm_params": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "utm_source": {
+                "type": "string"
+              },
+              "utm_medium": {
+                "type": "string"
+              },
+              "utm_campaign": {
+                "type": "string"
+              },
+              "utm_term": {
+                "type": "string"
+              },
+              "utm_content": {
+                "type": "string"
+              }
+            },
+            "required": ["enabled"],
+            "additionalProperties": false,
+            "description": "UTM tracking params. Only when the user explicitly asks."
+          },
+          "audience_groups": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Send to one or more predefined audience groups (1-20 group IDs). Each ID refers to an audience group already configured in PushEngage. Omit this field to send to all subscribers. Only set this when the user mentions a saved/predefined audience group. Mutually exclusive with subscriber_filter."
+          },
+          "subscriber_filter": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": ["or", "and"],
+                "default": "or",
+                "description": "How groups in `value` combine: \"or\" (default) means a subscriber matches if ANY group matches; \"and\" means EVERY group must match. Rules WITHIN a group are always AND-ed."
+              },
+              "value": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "enum": [
+                          "attributes",
+                          "city",
+                          "click_count",
+                          "country",
+                          "device",
+                          "device_token_hash",
+                          "device_type",
+                          "profile_id",
+                          "segments",
+                          "sent_count",
+                          "state",
+                          "ts_created",
+                          "ts_last_click",
+                          "ts_last_sent",
+                          "ts_last_view",
+                          "view_count"
+                        ],
+                        "description": "Which subscriber property to match. Each field accepts only certain operators — see `op`."
+                      },
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "dt_gt",
+                          "dt_lt",
+                          "eq",
+                          "exists",
+                          "gt",
+                          "gte",
+                          "in",
+                          "lt",
+                          "lte",
+                          "ne",
+                          "nin",
+                          "not_exists",
+                          "ts_elapsed_gt",
+                          "ts_elapsed_lt"
+                        ],
+                        "description": "Comparison operator. Allowed values depend on `field`: country/state/city/device/device_type → in, nin. segments → in (any of), all (all of), nin (none of). sent_count/view_count/click_count → eq, lt, gt, lte, gte. ts_created/ts_last_sent/ts_last_view/ts_last_click → lt (before), gt (after), ts_elapsed_lt (in the last N seconds), ts_elapsed_gt (older than N seconds). profile_id/device_token_hash → in. attributes → any operator, including exists / not_exists."
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": ["string", "number", "boolean"]
+                            },
+                            "minItems": 1
+                          }
+                        ],
+                        "description": "The match value. Omit entirely for exists / not_exists. Array for in / nin / all. Positive integer seconds for ts_elapsed_gt / ts_elapsed_lt. For segments, pass segment NAMES as strings (resolved automatically) or numeric segment IDs."
+                      },
+                      "key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Required ONLY when field=\"attributes\" — the attribute key to look up. Call pushengage_list_attributes to discover valid keys. Must be omitted for every other field."
+                      }
+                    },
+                    "required": ["field", "op"],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 50
+                },
+                "minItems": 1,
+                "maxItems": 15,
+                "description": "2-D array: outer is a list of rule-groups (max 15), each inner group is an AND-ed list of rules (1–50). With the default op=\"or\", a subscriber matches if any group's rules all match."
+              }
+            },
+            "required": ["value"],
+            "additionalProperties": false,
+            "description": "OPTIONAL. The dashboard's \"Send to Custom Audience\": personalize who receives this notification based on segments, location, device and more. Mutually exclusive with audience_groups; omit both for \"Send to All Subscribers\". A 2-D expression: `value` is a list of rule-groups, rules inside a group are AND-ed, and the top-level `op` combines the groups (\"or\" by default). Segment rules accept segment NAMES and are resolved automatically, so { field: \"segments\", op: \"in\", value: [\"Sports Fans\"] } works without a lookup. For country, state, city, device or device_type values call pushengage_list_audience_filter_values first; for an attributes rule's `key` call pushengage_list_attributes first. Both are site-specific, and a guessed value saves successfully but reaches the wrong people. Every segment reference and attribute key is verified before anything is sent; an unresolvable one fails the call rather than silently changing who receives the push. Example — mobile subscribers in the Sports Fans segment: { op: \"or\", value: [[{ field: \"segments\", op: \"in\", value: [\"Sports Fans\"] }, { field: \"device\", op: \"in\", value: [\"mobile\"] }]] }. Example — subscribed in the last 7 days on a paid plan: { op: \"or\", value: [[{ field: \"ts_created\", op: \"ts_elapsed_lt\", value: 604800 }, { field: \"attributes\", key: \"plan\", op: \"ne\", value: \"free\" }]] }."
+          },
+          "android_push": {
+            "type": "object",
+            "properties": {
+              "action_buttons": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "icon": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": ["url", "label"],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 2
+              },
+              "small_icon": {
+                "type": "string"
+              },
+              "large_icon": {
+                "type": "string"
+              },
+              "big_picture": {
+                "type": "string"
+              },
+              "channel_id": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "deep_link": {
+                "type": "string"
+              },
+              "group_key": {
+                "type": "string"
+              },
+              "accent_color": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Android-specific options. Requires channel_id when set. Only when the user explicitly asks."
+          },
+          "ios_push": {
+            "type": "object",
+            "properties": {
+              "action_buttons": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["id", "label"],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 2
+              },
+              "deep_link": {
+                "type": "string"
+              },
+              "badge": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "badge_increment": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "category": {
+                "type": "string"
+              },
+              "content_available": {
+                "type": "number",
+                "enum": [0, 1]
+              },
+              "media": {
+                "type": "string"
+              },
+              "sound": {
+                "type": "string"
+              },
+              "thread_id": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "description": "iOS-specific options. Only when the user explicitly asks."
+          },
+          "send_in_subscribers_timezone": {
+            "type": "boolean",
+            "description": "Only valid when status=\"schedule\" (and not combined with recurring_schedule). When true, schedule_date is interpreted in each subscriber's local timezone instead of the site timezone — one delivery is scheduled per subscriber timezone so every recipient receives the push at the same wall-clock time. Only set this when the user explicitly asks for subscriber-timezone delivery (for example: \"send at 9am in their timezone\")."
+          },
+          "recurring_schedule": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday"
+                  ]
+                },
+                "minItems": 1,
+                "description": "Days of the week to send on. Values are lowercase day names. At least one day required."
+              },
+              "times": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$"
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Times of day to send (24-hour). HH:mm or HH:mm:ss accepted. e.g. [\"09:00\", \"17:30\"]. At least one, up to 100."
+              },
+              "start_date": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "First date the recurrence is active. Format: YYYY-MM-DD (site timezone)."
+              },
+              "end_date": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Last date the recurrence is active. Format: YYYY-MM-DD. Must be on or after start_date."
+              }
+            },
+            "required": ["days", "times", "start_date", "end_date"],
+            "additionalProperties": false,
+            "description": "OPTIONAL. Turns this into a recurring notification that fires on the chosen days/times between start_date and end_date. Mutually exclusive with status=\"schedule\", schedule_date, and send_in_subscribers_timezone. With recurring_schedule set, leave status at \"sent\" (default) to activate the recurrence, or use \"draft\" to save without activating. Only set this when the user explicitly asks for a recurring/repeating notification."
+          }
+        },
+        "required": ["title", "message", "url"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_send_notification",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "notification_id": {},
+          "status": {},
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "view_url": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Send a push notification"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "description": "Creates an A/B notification on the current site with two variants (variant_a and variant_b). Required: variant_a (title, message, url) and variant_b (title, message, url). By default (intelligent_ab_test omitted) both variants ship as-is to the audience — no automatic winner picking. Pass intelligent_ab_test to enable intelligent / auto-winner mode: each variant is sent to sent_limit_percentage% of subscribers, and after winner_delay_minutes the higher-CTR variant is automatically delivered to the remaining audience (up to sent_limit total). Only include intelligent_ab_test when the user explicitly asks for an intelligent / auto-winner test. Do not add other optional fields (tags, audience_groups, per-variant image_url, utm_params, actions, etc.) unless the user explicitly asks. Audience (pick AT MOST one — mutually exclusive; omit both to send to all subscribers): `audience_groups` (1-20 predefined audience-group IDs), or `subscriber_filter` for \"Send to Custom Audience\". Both apply to both variants, and subscriber_filter behaves exactly as it does on pushengage_send_notification. Use status=\"schedule\" with schedule_date to schedule for later, or status=\"draft\" to save without sending.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "variant_a": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 85,
+                "description": "Variant title"
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 135,
+                "description": "Variant message body"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Destination URL when the subscriber clicks the variant"
+              },
+              "image_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Small icon for this variant. Only when the user explicitly asks."
+              },
+              "big_image_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Large hero image for this variant. Only when the user explicitly asks."
+              },
+              "expire_in": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 2419200,
+                "description": "Variant expiry in seconds (60–2419200)."
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "image_url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": ["label", "url"],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 2,
+                "description": "Action buttons for this variant."
+              },
+              "utm_params": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "utm_source": {
+                    "type": "string"
+                  },
+                  "utm_medium": {
+                    "type": "string"
+                  },
+                  "utm_campaign": {
+                    "type": "string"
+                  },
+                  "utm_term": {
+                    "type": "string"
+                  },
+                  "utm_content": {
+                    "type": "string"
+                  }
+                },
+                "required": ["enabled"],
+                "additionalProperties": false,
+                "description": "UTM tracking params for this variant."
+              },
+              "android_push": {
+                "type": "object",
+                "properties": {
+                  "action_buttons": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "icon": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      },
+                      "required": ["url", "label"],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 2
+                  },
+                  "small_icon": {
+                    "type": "string"
+                  },
+                  "large_icon": {
+                    "type": "string"
+                  },
+                  "big_picture": {
+                    "type": "string"
+                  },
+                  "channel_id": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "deep_link": {
+                    "type": "string"
+                  },
+                  "group_key": {
+                    "type": "string"
+                  },
+                  "accent_color": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Android-specific options for this variant."
+              },
+              "ios_push": {
+                "type": "object",
+                "properties": {
+                  "action_buttons": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": ["id", "label"],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 2
+                  },
+                  "deep_link": {
+                    "type": "string"
+                  },
+                  "badge": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "badge_increment": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "category": {
+                    "type": "string"
+                  },
+                  "content_available": {
+                    "type": "number",
+                    "enum": [0, 1]
+                  },
+                  "media": {
+                    "type": "string"
+                  },
+                  "sound": {
+                    "type": "string"
+                  },
+                  "thread_id": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "iOS-specific options for this variant."
+              }
+            },
+            "required": ["title", "message", "url"],
+            "additionalProperties": false,
+            "description": "A/B variant A. Required."
+          },
+          "variant_b": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "$ref": "#/properties/variant_a/properties/title"
+              },
+              "message": {
+                "$ref": "#/properties/variant_a/properties/message"
+              },
+              "url": {
+                "$ref": "#/properties/variant_a/properties/url"
+              },
+              "image_url": {
+                "$ref": "#/properties/variant_a/properties/image_url"
+              },
+              "big_image_url": {
+                "$ref": "#/properties/variant_a/properties/big_image_url"
+              },
+              "expire_in": {
+                "$ref": "#/properties/variant_a/properties/expire_in"
+              },
+              "actions": {
+                "$ref": "#/properties/variant_a/properties/actions"
+              },
+              "utm_params": {
+                "$ref": "#/properties/variant_a/properties/utm_params"
+              },
+              "android_push": {
+                "$ref": "#/properties/variant_a/properties/android_push"
+              },
+              "ios_push": {
+                "$ref": "#/properties/variant_a/properties/ios_push"
+              }
+            },
+            "required": ["title", "message", "url"],
+            "additionalProperties": false,
+            "description": "A/B variant B. Required."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["sent", "schedule", "draft"],
+            "default": "sent",
+            "description": "Send now (sent), schedule for later (schedule), or save without sending (draft). The API only accepts sent and scheduled in the body; draft is conveyed via the action query param while the body still carries status=\"sent\"."
+          },
+          "schedule_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$",
+            "description": "Required when status is \"schedule\". Format: YYYY-MM-DD HH:mm:ss in the site timezone."
+          },
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site"
+          },
+          "audience_groups": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Send to one or more predefined audience groups (1-20 group IDs). Applies to both variants. Omit to send to all subscribers. Only set when the user mentions a saved/predefined audience group. Mutually exclusive with subscriber_filter."
+          },
+          "subscriber_filter": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": ["or", "and"],
+                "default": "or",
+                "description": "How groups in `value` combine: \"or\" (default) means a subscriber matches if ANY group matches; \"and\" means EVERY group must match. Rules WITHIN a group are always AND-ed."
+              },
+              "value": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "enum": [
+                          "attributes",
+                          "city",
+                          "click_count",
+                          "country",
+                          "device",
+                          "device_token_hash",
+                          "device_type",
+                          "profile_id",
+                          "segments",
+                          "sent_count",
+                          "state",
+                          "ts_created",
+                          "ts_last_click",
+                          "ts_last_sent",
+                          "ts_last_view",
+                          "view_count"
+                        ],
+                        "description": "Which subscriber property to match. Each field accepts only certain operators — see `op`."
+                      },
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "all",
+                          "dt_gt",
+                          "dt_lt",
+                          "eq",
+                          "exists",
+                          "gt",
+                          "gte",
+                          "in",
+                          "lt",
+                          "lte",
+                          "ne",
+                          "nin",
+                          "not_exists",
+                          "ts_elapsed_gt",
+                          "ts_elapsed_lt"
+                        ],
+                        "description": "Comparison operator. Allowed values depend on `field`: country/state/city/device/device_type → in, nin. segments → in (any of), all (all of), nin (none of). sent_count/view_count/click_count → eq, lt, gt, lte, gte. ts_created/ts_last_sent/ts_last_view/ts_last_click → lt (before), gt (after), ts_elapsed_lt (in the last N seconds), ts_elapsed_gt (older than N seconds). profile_id/device_token_hash → in. attributes → any operator, including exists / not_exists."
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": ["string", "number", "boolean"]
+                            },
+                            "minItems": 1
+                          }
+                        ],
+                        "description": "The match value. Omit entirely for exists / not_exists. Array for in / nin / all. Positive integer seconds for ts_elapsed_gt / ts_elapsed_lt. For segments, pass segment NAMES as strings (resolved automatically) or numeric segment IDs."
+                      },
+                      "key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Required ONLY when field=\"attributes\" — the attribute key to look up. Call pushengage_list_attributes to discover valid keys. Must be omitted for every other field."
+                      }
+                    },
+                    "required": ["field", "op"],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1,
+                  "maxItems": 50
+                },
+                "minItems": 1,
+                "maxItems": 15,
+                "description": "2-D array: outer is a list of rule-groups (max 15), each inner group is an AND-ed list of rules (1–50). With the default op=\"or\", a subscriber matches if any group's rules all match."
+              }
+            },
+            "required": ["value"],
+            "additionalProperties": false,
+            "description": "OPTIONAL. \"Send to Custom Audience\" applied to BOTH variants — same shape and same name-resolution behaviour as pushengage_send_notification's subscriber_filter: segment names resolve to ids, and segment and attribute references are verified before anything is sent. Mutually exclusive with audience_groups; omit both to send to all subscribers."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 36
+            },
+            "maxItems": 5,
+            "description": "Up to 5 tags, 36 chars each. Only when the user explicitly asks for tags."
+          },
+          "intelligent_ab_test": {
+            "type": "object",
+            "properties": {
+              "sent_limit": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "Total subscriber cap across the test and the winner roll-out. e.g. 10000 means up to 10000 subscribers will be touched in total."
+              },
+              "sent_limit_percentage": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 99,
+                "description": "Percentage of sent_limit allocated to each variant for the test phase. e.g. 10 means 10% to A, 10% to B, and the remaining 80% goes to the winner after winner_delay_minutes."
+              },
+              "winner_delay_minutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10080,
+                "description": "How long to wait (in minutes, max 10080 = 7 days) before picking the winner (higher CTR) and rolling out to the remaining audience."
+              },
+              "result_name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Optional human-readable label for the A/B test result row."
+              }
+            },
+            "required": ["sent_limit", "sent_limit_percentage", "winner_delay_minutes"],
+            "additionalProperties": false,
+            "description": "OPTIONAL. Enables intelligent A/B testing: each variant is delivered to sent_limit_percentage% of subscribers, then after winner_delay_minutes the variant with the higher click-through rate is automatically sent to the remaining audience (up to sent_limit subscribers total). Omit this field to send a plain A/B where both variants ship as-is to the audience with no automatic winner selection. Only include when the user explicitly asks for an intelligent / auto-winner A/B test."
+          }
+        },
+        "required": ["variant_a", "variant_b"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_send_ab_notification",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "notification_id": {},
+          "ab_notification_id": {},
+          "status": {},
+          "view_url": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Send an A/B push notification"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Returns the current site's all-time, site-wide totals: subscribers (current active count), notifications sent, views, clicks, and goal conversions/value. Not bounded by any date range — for trends over a period use pushengage_get_analytics_timeseries instead.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_get_analytics_summary",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "total_subscribers": {
+            "type": "number"
+          },
+          "total_notifications_sent": {
+            "type": "number"
+          },
+          "total_views": {
+            "type": "number"
+          },
+          "total_clicks": {
+            "type": "number"
+          },
+          "total_goal_count": {
+            "type": "number"
+          },
+          "total_goal_value": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Get all-time analytics totals"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Returns a time series of the current site's analytics between start_date and end_date, bucketed by group_by. Each point has subscribers gained, notifications sent, views, clicks, ctr, and unsubscribes for that bucket. Use this for trends or metrics over a period; for all-time totals use pushengage_get_analytics_summary instead.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Start of the range (inclusive). Format: YYYY-MM-DD."
+          },
+          "end_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "End of the range (inclusive). Format: YYYY-MM-DD. Must be on or after start_date."
+          },
+          "group_by": {
+            "type": "string",
+            "enum": ["day", "week", "month"],
+            "default": "day",
+            "description": "How to bucket the series: one point per day, week, or month."
+          },
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          }
+        },
+        "required": ["start_date", "end_date"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_get_analytics_timeseries",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "group_by": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          },
+          "end_date": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "Get analytics over a date range"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists the drip autoresponder campaigns on the current site, paginated (response includes `has_more`). Optionally filter by status (default \"all\" = every status), mirroring the dashboard filter tabs. Set include_analytics=true only when the user asks for stats/performance (it costs an extra analytics lookup per page). Each item then also carries an analytics object: sent, seen, clicked, ctr, goal_count, goal_value.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "How many to return per page. Min 1, max 100, default 10."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number (1-indexed)."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["all", "active", "draft", "paused"],
+            "default": "all",
+            "description": "Filter by status. \"all\" (default) returns every status."
+          },
+          "include_analytics": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, include per-campaign analytics (sent/seen/clicked/CTR and goal count/value). Costs an extra analytics lookup, so only set it when the user asks for stats/performance."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_drip_campaigns",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "last_page": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "campaigns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List drip campaigns"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists the triggered campaigns (Price Drop / Inventory Alert / Cart Abandonment / etc.) on the current site, paginated (response includes `has_more`). Optionally filter by status (default \"all\" = every status), mirroring the dashboard filter tabs. Set include_analytics=true only when the user asks for stats/performance (it costs an extra analytics lookup per page). Each item then also carries an analytics object: sent, seen, clicked, ctr, goal_count, goal_value.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "How many to return per page. Min 1, max 100, default 10."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number (1-indexed)."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["all", "active", "draft", "paused", "archive"],
+            "default": "all",
+            "description": "Filter by status. \"all\" (default) returns every status."
+          },
+          "include_analytics": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, include per-campaign analytics (sent/seen/clicked/CTR and goal count/value). Costs an extra analytics lookup, so only set it when the user asks for stats/performance."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_triggered_campaigns",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "last_page": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "campaigns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List triggered campaigns"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists the RSS auto push campaigns on the current site, paginated (response includes `has_more`). Each item includes the feed_url. Optionally filter by status (default \"all\" = every status), mirroring the dashboard filter tabs.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "How many to return per page. Min 1, max 100, default 10."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number (1-indexed)."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["all", "active", "draft", "paused"],
+            "default": "all",
+            "description": "Filter by status. \"all\" (default) returns every status."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_rss_campaigns",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "last_page": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "campaigns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List RSS auto push campaigns"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists the workflow automations on the current site, paginated (response includes `has_more`). Optionally filter by status (default \"all\" = every status), mirroring the dashboard filter tabs. Set include_analytics=true only when the user asks for stats/performance (it costs an extra analytics lookup per page). Each item then also carries an analytics object: entered, active, completed, failed (user counts), goal_count, goal_value.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "How many to return per page. Min 1, max 100, default 10."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number (1-indexed)."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["all", "active", "inactive", "draft"],
+            "default": "all",
+            "description": "Filter by status. \"all\" (default) returns every status."
+          },
+          "include_analytics": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, include per-workflow analytics (entered/active/completed/failed users and goal count/value). Costs an extra analytics lookup; only set it when the user asks for stats."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_workflows",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "last_page": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List workflow automations"
+    },
+    {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true
+      },
+      "description": "Lists the chat widgets on the current site, paginated (response includes `has_more`). A chat widget is the floating button that surfaces support channels (WhatsApp, Messenger, Email, etc.) on the site. Each item carries the configured channels, target devices, business-hours restriction, and a country/page targeting summary.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Override the currently selected site."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "How many chat widgets to return in this page. Min 1, max 100, default 10. To browse past the first 100, increase `page` instead of asking for a larger limit."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Page number (1-indexed) for paginating beyond the first batch."
+          },
+          "name_contains": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional case-insensitive substring filter on the widget name."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["all", "active", "inactive"],
+            "default": "all",
+            "description": "Filter by status. \"all\" (default) returns every status."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "name": "pushengage_list_chat_widgets",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "last_page": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "chat_widgets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "title": "List chat widgets"
+    }
+  ],
+  "version": "1.1.0"
+}

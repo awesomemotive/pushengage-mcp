@@ -1,6 +1,7 @@
 // src/audienceGroups/api.ts
 import type { ApiClient } from '../http/client';
-import type { ApiCreateAudienceGroupBody, SubscriberFilter } from './schema';
+import type { SubscriberFilter } from '../subscriberFilter/schema';
+import type { ApiCreateAudienceGroupBody } from './schema';
 
 /**
  * Lean AudienceGroup shape returned by `pushengage_list_audience_groups`. The API column is
