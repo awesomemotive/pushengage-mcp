@@ -125,6 +125,15 @@ export const CreateAttributeOutput = looseOutput({
   use_with_audience_group_rule: z.object({}).passthrough(),
 });
 
+// ---- audience filter values ---------------------------------------------------
+/**
+ * Not paginated — the endpoint returns every value at once and the tool caps per field, so the
+ * shape is a map of field → { values, total_values, truncated } rather than a page.
+ */
+export const AudienceFilterValuesOutput = looseOutput({
+  fields: z.object({}).passthrough(),
+});
+
 // ---- notifications -----------------------------------------------------------
 export const NotificationsListOutput = paginatedOutput('notifications');
 export const SendNotificationOutput = looseOutput({
@@ -134,12 +143,16 @@ export const SendNotificationOutput = looseOutput({
   message: z.string(),
   url: z.string(),
   view_url: z.string(),
+  // Present only when schedule_timezone was used; documents both wall clocks so the assistant
+  // can tell the user what was actually scheduled.
+  schedule_conversion: z.object({}).passthrough(),
 });
 export const SendAbNotificationOutput = looseOutput({
   notification_id: z.unknown(),
   ab_notification_id: z.unknown(),
   status: z.unknown(),
   view_url: z.string(),
+  schedule_conversion: z.object({}).passthrough(),
 });
 
 // ---- site settings -----------------------------------------------------------

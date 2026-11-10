@@ -3,6 +3,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { errorResult } from '../http/errors';
 import { resolveContext } from '../context';
+import { audienceGroupUrl } from '../dashboardUrl';
+import { resolveSubscriberFilter } from '../subscriberFilter/resolve';
 import { AudienceGroupsListOutput, CreateAudienceGroupOutput } from '../output';
 import { createAudienceGroup, listAudienceGroups } from './api';
 import {
@@ -49,13 +51,17 @@ export function registerAudienceGroupTools(server: McpServer): void {
       title: 'Create an audience group',
       description:
         'Creates a new audience group on the current site. Required: `name` and `filter`. The `filter` is a ' +
-        'subscriber-filter expression — { op: "or" | "and" (default "or"), value: 2-D array of rule groups }. ' +
-        'Each rule is { field, op, value?, key? }. Rules WITHIN a group are AND-ed; groups in `value` are combined ' +
-        'with the top-level `op`. See the inputSchema field descriptions for the supported `field` and `op` enums. ' +
+        'subscriber-filter expression — { op: "or" (the only supported value), value: 2-D array of rule groups }. ' +
+        'Each rule is { field, op, value?, key? }. Rules WITHIN a group are AND-ed; groups in `value` are OR-ed, so ' +
+        'conditions that must all hold go in ONE group. See the inputSchema field descriptions for the supported ' +
+        '`field` and `op` enums. ' +
         'Common patterns: ' +
         '"Mobile subscribers" → filter={ op: "or", value: [[{ field: "device", op: "in", value: ["mobile"] }]] }. ' +
-        '"Subscribed in the last 7 days" → filter={ op: "or", value: [[{ field: "ts_created", op: "ts_elapsed_lt", value: 604800 }]] }. ' +
+        '"Subscribed in the last 7 days" → filter={ op: "or", value: [[{ field: "ts_created", op: "ts_elapsed_lt", value: 10080 }]] } ' +
+        '(ts_elapsed_* is in MINUTES: 7 × 1440). ' +
         '"Highly engaged" (≥20 sent AND ≥2 clicks) → filter={ op: "or", value: [[{ field: "sent_count", op: "gt", value: 20 }, { field: "click_count", op: "gt", value: 2 }]] }. ' +
+        '"Sports Fans segment on mobile" → filter={ op: "or", value: [[{ field: "segments", op: "in", value: ["Sports Fans"] }, { field: "device", op: "in", value: ["mobile"] }]] } — segment NAMES are resolved to ids automatically. ' +
+        'Call pushengage_list_audience_filter_values before any country/state/city/device/device_type rule and pushengage_list_attributes before any attributes rule: those values are site-specific, and a guessed one saves successfully but matches nobody. ' +
         'Only set description and complex filters when the user explicitly describes them.',
       inputSchema: CreateAudienceGroupInputSchema,
       annotations: {
@@ -69,9 +75,15 @@ export function registerAudienceGroupTools(server: McpServer): void {
     async (input) => {
       try {
         const { client, siteId, config } = await resolveContext(input.site_id);
-        const body = toCreateAudienceGroupApiBody(input);
+        // Same pre-write resolution the send tools use: segment names become ids and every
+        // segment / attribute reference is verified. Audience groups are NOT scrubbed server-side
+        // the way notifications are, so an unverified reference here is stored verbatim and the
+        // group silently matches nobody — worth catching before it is saved and reused.
+        const filterResult = await resolveSubscriberFilter(client, siteId, input.filter);
+        const resolvedInput = { ...input, filter: filterResult.filter };
+        const body = toCreateAudienceGroupApiBody(resolvedInput);
         const created = await createAudienceGroup(client, siteId, body);
-        const viewUrl = `${config.dashboard_url}/sites/${siteId}/audiences/audience-groups/${created.id ?? ''}`;
+        const viewUrl = audienceGroupUrl(config.dashboard_url, created.id);
         const payload = {
           id: created.id,
           name: created.name ?? body.name,
@@ -83,6 +95,9 @@ export function registerAudienceGroupTools(server: McpServer): void {
           use_with_send_notification: {
             audience_groups: created.id ? [created.id] : undefined,
           },
+          ...(filterResult.date_conversions.length > 0
+            ? { filter_date_conversions: filterResult.date_conversions }
+            : {}),
         };
         return {
           content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],

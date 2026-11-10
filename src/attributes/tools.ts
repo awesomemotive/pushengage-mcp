@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { errorResult } from '../http/errors';
 import { resolveContext } from '../context';
+import { attributesUrl } from '../dashboardUrl';
 import { AttributesListOutput, CreateAttributeOutput } from '../output';
 import { createAttribute, listAttributes } from './api';
 import {
@@ -66,7 +67,7 @@ export function registerAttributeTools(server: McpServer): void {
         const { client, siteId, config } = await resolveContext(input.site_id);
         const body = toCreateAttributeApiBody(input);
         const created = await createAttribute(client, siteId, body);
-        const viewUrl = `${config.dashboard_url}/sites/${siteId}/audiences/attributes`;
+        const viewUrl = attributesUrl(config.dashboard_url);
         const payload = {
           id: created.id,
           name: created.name ?? body.name,

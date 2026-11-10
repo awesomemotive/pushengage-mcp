@@ -1,4 +1,6 @@
 // src/http/errors.ts
+import { ZodError } from 'zod';
+
 export type ErrorCode =
   | 'AUTH_EXPIRED'
   | 'AUTH_DENIED'
@@ -136,13 +138,43 @@ export function mapHttpError(status: number, body: unknown): McpServerError {
 }
 
 /**
+ * Flatten a ZodError into `path: message` pairs.
+ *
+ * Deepest-first wins per path is not needed — Zod already reports one issue per path in practice,
+ * and a later issue on the same path is the more specific one (a superRefine runs after the base
+ * shape check), so a plain overwrite is right.
+ */
+function zodFieldErrors(err: ZodError): Record<string, string> {
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of err.issues) {
+    const path = issue.path.length > 0 ? issue.path.join('.') : '(input)';
+    fieldErrors[path] = issue.message;
+  }
+  return fieldErrors;
+}
+
+/**
  * Render any thrown value as an MCP tool error result. A typed McpServerError renders with its
  * code + hint; anything else degrades to a generic [API_ERROR]. Shared by every tool handler's
  * catch block, so it lives here alongside the error types rather than in any one tool module.
+ *
+ * A ZodError is translated rather than stringified. Every tool handler re-parses its input with
+ * the full schema (the SDK only introspects the plain object shape, so cross-field refinements
+ * run here), which means a mutually-exclusive-mode or bad-enum error arrives as a ZodError even
+ * though no request was ever made. Left to the generic branch it rendered as `[API_ERROR]`
+ * followed by Zod's raw JSON dump: a wrong code for a client-side refusal, and unreadable for the
+ * model that has to correct it. Reported as P3-1 in QA on PR #287.
  */
 export function errorResult(err: unknown) {
   if (err instanceof McpServerError) {
     return { content: [{ type: 'text' as const, text: err.render() }], isError: true };
+  }
+  if (err instanceof ZodError) {
+    const validation = new ValidationError(
+      "The request did not match this tool's input schema, so nothing was sent.",
+      zodFieldErrors(err),
+    );
+    return { content: [{ type: 'text' as const, text: validation.render() }], isError: true };
   }
   const msg = err instanceof Error ? err.message : String(err);
   return {

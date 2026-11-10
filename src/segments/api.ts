@@ -19,6 +19,12 @@ export type Segment = {
   subscribers?: number;
 };
 
+/**
+ * `SEGMENT_DB_ROW.status.active` (pushengage-adonis-node-api, storage/Models/Segment.js) — 1 is
+ * active, 0 is paused.
+ */
+export const SEGMENT_STATUS_ACTIVE = 1;
+
 export type SegmentsPage = {
   segments: Segment[];
   page: number;

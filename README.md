@@ -49,7 +49,7 @@ Once connected, just describe what you want. A few examples:
 ## Requirements
 
 - A [PushEngage](https://www.pushengage.com/) account (free or paid) with at least one site.
-- Node.js 18 or newer (the assistant runs the server via `npx`).
+- Node.js 20 or newer (the assistant runs the server via `npx`).
 - An MCP-capable client (Claude Desktop, Claude Code, Cursor, or any other).
 
 ## Install
@@ -140,6 +140,7 @@ All site-scoped tools default to the current site.
 | `pushengage_list_segments` / `pushengage_create_segment` | URL-rule based subscriber segments. |
 | `pushengage_list_audience_groups` / `pushengage_create_audience_group` | Saved targeting groups (device, country, segment, engagement, dates, attributes). Referenced by the send tools' `audience_groups`. |
 | `pushengage_list_attributes` / `pushengage_create_attribute` | Custom subscriber attribute keys used in audience-group rules (max 50 per site). |
+| `pushengage_list_audience_filter_values` | The location and device values recorded on this site, with subscriber counts — the values a Custom Audience filter rule can use for `country` / `state` / `city` / `device` / `device_type`. Call before writing one of those rules: locations are site-specific display names, not ISO codes. |
 
 ### Campaigns and automations
 
@@ -168,8 +169,8 @@ All site-scoped tools default to the current site.
 | Tool | Purpose |
 |---|---|
 | `pushengage_list_notifications` | Lists sent, scheduled, and draft notifications, newest first. Filter by status (dashboard-tab semantics), sent-date range, or tags; set `include_analytics` for rolled-up A/B and timezone-send stats. |
-| `pushengage_send_notification` | Sends or schedules a notification. One tool, three delivery modes: send now, one-shot schedule (optionally per-subscriber timezone), and recurring. Optional `audience_groups` targeting; otherwise all subscribers. |
-| `pushengage_send_ab_notification` | An A/B notification with two variants. Pass `intelligent_ab_test` to sample each variant, pick the winner by click rate after a delay, and roll the winner out to the rest. |
+| `pushengage_send_notification` | Sends or schedules a notification. One tool, three delivery modes: send now, one-shot schedule (optionally per-subscriber timezone), and recurring. `schedule_timezone` lets you give the time in your own IANA timezone and have it converted to the site's, with both wall clocks reported back. Targeting mirrors the dashboard's three options: omit both fields for All Subscribers, `audience_groups` for an Audience Group, or `subscriber_filter` for a Custom Audience (segments, location, device, attributes, engagement — segment names are resolved to IDs and verified before sending). |
+| `pushengage_send_ab_notification` | An A/B notification with two variants. Pass `intelligent_ab_test` to sample each variant, pick the winner by click rate after a delay, and roll the winner out to the rest. Supports the same `audience_groups` / `subscriber_filter` targeting, applied to both variants. |
 
 ## Configuration
 

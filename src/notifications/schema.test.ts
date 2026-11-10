@@ -781,3 +781,195 @@ describe('toListNotificationsQuery', () => {
     expect(toListNotificationsQuery(parse({})).expand).toBeUndefined();
   });
 });
+
+describe('subscriber_filter targeting', () => {
+  const base = {
+    title: 'Hi',
+    message: 'There',
+    url: 'https://example.com',
+  };
+  const segmentsFilter = {
+    op: 'or' as const,
+    value: [[{ field: 'segments' as const, op: 'in' as const, value: [12, 34] }]],
+  };
+
+  it('emits notification_criteria.filter with no sibling keys', () => {
+    // The API's filter branch validates `.keys({ filter })` only — anything else is stripped,
+    // and a stray `audience` key would flip the whole request to audience-group targeting.
+    const body = toApiBody(
+      SendNotificationInputSchema.parse({ ...base, subscriber_filter: segmentsFilter }),
+    );
+    expect(body.notification_criteria).toEqual({ filter: segmentsFilter });
+    expect(Object.keys(body.notification_criteria as object)).toEqual(['filter']);
+  });
+
+  it('omits notification_criteria entirely when neither mode is set', () => {
+    expect(
+      toApiBody(SendNotificationInputSchema.parse(base)).notification_criteria,
+    ).toBeUndefined();
+  });
+
+  it('still emits the audience shape for audience_groups', () => {
+    const body = toApiBody(SendNotificationInputSchema.parse({ ...base, audience_groups: [7] }));
+    expect(body.notification_criteria).toEqual({ audience: { groups: [7] } });
+  });
+
+  it('rejects audience_groups combined with subscriber_filter', () => {
+    // The API would silently win with `audience` and discard the filter, so this must not reach it.
+    const result = SendNotificationInputSchema.safeParse({
+      ...base,
+      audience_groups: [7],
+      subscriber_filter: segmentsFilter,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => /mutually exclusive/.test(i.message))).toBe(true);
+    }
+  });
+
+  it('composes with a scheduled send', () => {
+    const body = toApiBody(
+      SendNotificationInputSchema.parse({
+        ...base,
+        status: 'schedule',
+        schedule_date: '2026-12-01 09:00:00',
+        subscriber_filter: segmentsFilter,
+      }),
+    );
+    expect(body.status).toBe('scheduled');
+    expect(body.notification_criteria).toEqual({ filter: segmentsFilter });
+  });
+
+  it('composes with a recurring send', () => {
+    const body = toApiBody(
+      SendNotificationInputSchema.parse({
+        ...base,
+        subscriber_filter: segmentsFilter,
+        recurring_schedule: {
+          days: ['monday'],
+          times: ['09:00'],
+          start_date: '2026-12-01',
+          end_date: '2026-12-31',
+        },
+      }),
+    );
+    expect(body.source).toBe('repeat_scheduled');
+    expect(body.notification_criteria).toEqual({ filter: segmentsFilter });
+  });
+
+  it('rejects an operator the field does not support', () => {
+    expect(
+      SendNotificationInputSchema.safeParse({
+        ...base,
+        subscriber_filter: {
+          op: 'or',
+          value: [[{ field: 'segments', op: 'eq', value: 'Sports Fans' }]],
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('applies to A/B sends with the same shape', () => {
+    const variant = { title: 'A', message: 'M', url: 'https://example.com' };
+    const body = toAbApiBody(
+      SendAbNotificationInputSchema.parse({
+        variant_a: variant,
+        variant_b: { ...variant, title: 'B' },
+        subscriber_filter: segmentsFilter,
+      }),
+    );
+    expect(body.notification_criteria).toEqual({ filter: segmentsFilter });
+  });
+
+  it('rejects both modes on A/B sends too', () => {
+    const variant = { title: 'A', message: 'M', url: 'https://example.com' };
+    expect(
+      SendAbNotificationInputSchema.safeParse({
+        variant_a: variant,
+        variant_b: { ...variant, title: 'B' },
+        audience_groups: [7],
+        subscriber_filter: segmentsFilter,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+// =============================================================================
+// schedule_timezone — the two combinations where schedule_date is NOT site-local
+// =============================================================================
+
+const scheduledInput = {
+  title: 'Hello',
+  message: 'Body',
+  url: 'https://example.com',
+  status: 'schedule' as const,
+  schedule_date: '2026-12-01 09:00:00',
+};
+
+describe('SendNotificationInputSchema — schedule_timezone', () => {
+  it('accepts a timezone next to a one-shot schedule_date', () => {
+    const result = SendNotificationInputSchema.safeParse({
+      ...scheduledInput,
+      schedule_timezone: 'Asia/Kolkata',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  /**
+   * With `send_in_subscribers_timezone` the API stores schedule_date verbatim as
+   * `notification_criteria.tz_scheduled_time` (Formatters/Dashboard/Notification.js:348) and fans
+   * out one child per subscriber timezone at THAT wall clock. The value is deliberately
+   * zone-less, so converting it moved every recipient's delivery — 9am local became 22:30 local
+   * for a caller in Asia/Kolkata on a New York site (review of PR #287).
+   */
+  it('rejects schedule_timezone combined with send_in_subscribers_timezone', () => {
+    const result = SendNotificationInputSchema.safeParse({
+      ...scheduledInput,
+      schedule_timezone: 'Asia/Kolkata',
+      send_in_subscribers_timezone: true,
+    });
+    expect(result.success).toBe(false);
+    const message = result.success ? '' : JSON.stringify(result.error.issues);
+    expect(message).toContain('send_in_subscribers_timezone');
+    // The message has to say what to do instead, or the model just retries the same thing.
+    expect(message).toMatch(/nothing to convert/);
+  });
+
+  it('accepts send_in_subscribers_timezone on its own', () => {
+    const result = SendNotificationInputSchema.safeParse({
+      ...scheduledInput,
+      send_in_subscribers_timezone: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  /**
+   * `Etc/GMT+5` is five hours BEHIND UTC (POSIX sign convention). Intl applies it correctly, so
+   * the danger is in the writing: a model that means +05:00 lands ten hours away.
+   */
+  it('rejects the sign-inverted Etc/GMT±N zones and says which way they run', () => {
+    const behind = SendNotificationInputSchema.safeParse({
+      ...scheduledInput,
+      schedule_timezone: 'Etc/GMT+5',
+    });
+    expect(behind.success).toBe(false);
+    expect(behind.success ? '' : JSON.stringify(behind.error.issues)).toContain('BEHIND');
+
+    const ahead = SendNotificationInputSchema.safeParse({
+      ...scheduledInput,
+      schedule_timezone: 'Etc/GMT-5',
+    });
+    expect(ahead.success).toBe(false);
+    expect(ahead.success ? '' : JSON.stringify(ahead.error.issues)).toContain('AHEAD OF');
+  });
+
+  it('still accepts the unsigned Etc zones, which cannot be misread', () => {
+    for (const tz of ['Etc/UTC', 'Etc/GMT']) {
+      const result = SendNotificationInputSchema.safeParse({
+        ...scheduledInput,
+        schedule_timezone: tz,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+});
