@@ -449,16 +449,16 @@ export const SubscriberFilterSchema = z
         // A bare enum error reads "Invalid enum value. Expected 'or', received 'and'", which does
         // not tell the caller what to do instead. `and` is the one value worth explaining, since
         // the API accepts it and earlier versions of this schema offered it.
-        errorMap: (issue, ctx) =>
-          issue.code === z.ZodIssueCode.invalid_enum_value && issue.received === 'and'
-            ? {
-                message:
-                  'op="and" is not supported. The dashboard cannot represent an AND across groups: ' +
-                  'its preview always prints OR between them, and saving an audience there writes no ' +
-                  'op at all, so an edit would silently change what the filter means. Rules inside a ' +
-                  'single group are already AND-ed — put the conditions in one group instead.',
-              }
-            : { message: ctx.defaultError },
+        // zod 4 replaced `errorMap` with `error`, which returns a string (or undefined to fall
+        // back to the default message) rather than an object, and renamed the enum mismatch code
+        // from `invalid_enum_value` to `invalid_value`.
+        error: (issue) =>
+          issue.code === 'invalid_value' && issue.input === 'and'
+            ? 'op="and" is not supported. The dashboard cannot represent an AND across groups: ' +
+              'its preview always prints OR between them, and saving an audience there writes no ' +
+              'op at all, so an edit would silently change what the filter means. Rules inside a ' +
+              'single group are already AND-ed — put the conditions in one group instead.'
+            : undefined,
       })
       .default('or')
       .describe(

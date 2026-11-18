@@ -147,6 +147,17 @@ export const SendNotificationOutput = looseOutput({
   // can tell the user what was actually scheduled.
   schedule_conversion: z.object({}).passthrough(),
 });
+/** Delete is a soft delete, so the API answers with a count rather than the notification. */
+export const DeleteNotificationOutput = looseOutput({
+  notification_id: z.unknown(),
+  deleted: z.unknown(),
+  deleted_count: z.unknown(),
+});
+export const ResendNotificationOutput = looseOutput({
+  notification_id: z.unknown(),
+  resent: z.unknown(),
+  view_url: z.string(),
+});
 export const SendAbNotificationOutput = looseOutput({
   notification_id: z.unknown(),
   ab_notification_id: z.unknown(),

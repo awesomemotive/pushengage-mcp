@@ -15,6 +15,13 @@ export type CreatedNotification = {
   notification_message: string;
   notification_url: string;
   valid_from?: string;
+  /**
+   * The targeting as the API stored it, in read shape. Create and update both answer with the
+   * transformed notification, and on an update this is the only place the audience that was
+   * actually saved can be read — `describeSavedAudience` explains why it can differ from the one
+   * that was sent.
+   */
+  notification_criteria?: unknown;
 };
 
 export async function createNotification(
@@ -34,6 +41,84 @@ export async function createNotification(
  * dashboard link must use `notification_id` — the app has no route that takes the pair id (QA N1
  * on PR #287).
  */
+/**
+ * One notification, as the API reads it back.
+ *
+ * Deliberately `Record<string, unknown>` rather than a narrow type: this feeds
+ * `notificationToSendInput`, which has to put every field it recognises back into an update body,
+ * and a lean type here would silently drop whatever it failed to model — which on a full-replace
+ * update means clearing those fields. `pushengage_list_notifications` has the narrow shape; this
+ * is the write path and keeps everything.
+ */
+export async function getNotification(
+  client: ApiClient,
+  siteId: number,
+  notificationId: number,
+): Promise<Record<string, unknown>> {
+  const raw = await client.get<unknown>(`/sites/${siteId}/notifications/${notificationId}`);
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * Update a notification with a COMPLETE body — the same shape `createNotification` posts.
+ *
+ * `action` matters and must be passed explicitly: the API defaults it to `draft`
+ * (app/Validators/Dashboard/Schema/Notification/index.js:138), so a PATCH that leaves it off
+ * would turn a scheduled notification into a draft and silently cancel the send.
+ */
+export async function updateNotification(
+  client: ApiClient,
+  siteId: number,
+  notificationId: number,
+  input: SendNotificationInput,
+  body: ApiNotificationBody,
+): Promise<CreatedNotification> {
+  const action = input.status === 'draft' ? 'draft' : 'sent';
+  const path = `/sites/${siteId}/notifications/${notificationId}?action=${action}&type=generic`;
+  return client.patch<CreatedNotification>(path, body);
+}
+
+/**
+ * Soft-delete a notification.
+ *
+ * The row is not removed: `deleteNotification` flips its status to `deleted`
+ * (app/Services/Dashboard/Notification/index.js:847), which is why the response is a count rather
+ * than the notification. Deletable statuses are draft, scheduled, repeat_scheduled and
+ * pause_repeat_scheduled; RSS is refused; a subscriber-timezone parent also deletes its per
+ * timezone children.
+ */
+export async function deleteNotification(
+  client: ApiClient,
+  siteId: number,
+  notificationId: number,
+): Promise<{ count?: number }> {
+  return client.delete<{ count?: number }>(`/sites/${siteId}/notifications/${notificationId}`);
+}
+
+/**
+ * Send an already-sent notification again, as stored.
+ *
+ * Takes no body — the API re-reads the notification's own content, so nothing can be changed on
+ * the way out. Only `sent` and `sending` notifications qualify
+ * (app/Services/Dashboard/Notification/index.js:696); a subscriber-timezone parent is refused
+ * outright (NotificationController.js:583).
+ */
+export async function resendNotification(
+  client: ApiClient,
+  siteId: number,
+  notificationId: number,
+): Promise<Record<string, unknown>> {
+  const raw = await client.post<unknown>(
+    `/sites/${siteId}/notifications/${notificationId}/resend`,
+    {},
+  );
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
+}
+
 export type CreatedAbNotification = CreatedNotification & {
   ab_notification_id?: number;
 };

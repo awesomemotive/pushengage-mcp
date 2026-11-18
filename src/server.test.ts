@@ -16,7 +16,7 @@ describe('createServer', () => {
     // the SDK can't serialize would throw here rather than only failing live in a client.
     const { tools } = await client.listTools();
 
-    expect(tools.length).toBe(28);
+    expect(tools.length).toBe(32);
     for (const tool of tools) {
       expect(tool.name.startsWith('pushengage_')).toBe(true);
       expect(tool.outputSchema).toBeDefined();

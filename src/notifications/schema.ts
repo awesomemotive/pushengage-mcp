@@ -352,18 +352,37 @@ export const SendNotificationInputSchema = SendNotificationInputObject.superRefi
       message: 'schedule_date is required when status is "schedule"',
     });
   }
-  if (data.status !== 'schedule' && data.schedule_date) {
+  // A DRAFT may carry a schedule date and the subscriber-timezone flag. That is how the dashboard
+  // stores "a draft of a scheduled send": it posts `status: scheduled` with `valid_from` under
+  // `?action=draft`, and the formatter's draft block overrides only the status and sent date, not
+  // the schedule date (app/Formatters/Dashboard/Notification.js:379-383). Rejecting the pairing
+  // meant an edit stripped a draft's time and a timezone draft lost its mode entirely — raised in
+  // review of PR #290.
+  if (data.status === 'sent' && data.schedule_date) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['schedule_date'],
-      message: 'schedule_date is only valid when status is "schedule"',
+      message:
+        'schedule_date is only valid when status is "schedule" (or "draft", to keep the time on a ' +
+        'draft of a scheduled send).',
     });
   }
-  if (data.send_in_subscribers_timezone && data.status !== 'schedule') {
+  if (data.send_in_subscribers_timezone && data.status === 'sent') {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['send_in_subscribers_timezone'],
-      message: 'send_in_subscribers_timezone is only valid when status="schedule"',
+      message:
+        'send_in_subscribers_timezone needs status="schedule" (or "draft", for a draft of a ' +
+        'subscriber-timezone send).',
+    });
+  }
+  if (data.status === 'draft' && data.send_in_subscribers_timezone && !data.schedule_date) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['schedule_date'],
+      message:
+        'a draft of a subscriber-timezone send still needs a schedule_date — that time is what each ' +
+        'subscriber receives it at.',
     });
   }
   // recurring_schedule conflicts with the one-shot scheduling fields. The API's `source`
@@ -409,7 +428,7 @@ export type ApiNotificationBody = {
   //   - 'repeat_scheduled'    recurring notification driven by sche_options below; the API
   //                           flips the saved status to 'repeat_scheduled' internally on save.
   // superRefine on the input schema guarantees only one delivery mode applies per request.
-  source: 'API' | 'parent_sub_timezone' | 'repeat_scheduled';
+  source: 'API' | 'parent_sub_timezone' | 'repeat_scheduled' | 'Dashboard' | 'wordpress' | 'zapier';
   valid_from?: string;
   notification_image?: string;
   big_image?: string;
@@ -420,6 +439,21 @@ export type ApiNotificationBody = {
   notification_criteria?: Record<string, unknown>;
   android_push?: z.infer<typeof AndroidPushSchema>;
   ios_push?: z.infer<typeof IosPushSchema>;
+  /**
+   * NOT a tool input -- `mobile_push` stays deliberately unexposed (see docs/KNOWLEDGE.md). It is
+   * here only so an EDIT can carry back what the notification already had: the API rebuilds the
+   * whole `execution_state` column from the body's push fields on every update
+   * (app/Formatters/Dashboard/Notification.js:368-377), so omitting it wipes the mobile push
+   * settings. Passed through opaquely, never constructed. Raised in review of PR #290.
+   */
+  mobile_push?: unknown;
+  /**
+   * Replayed on an edit, like `mobile_push`, because the API rebuilds both from the body every
+   * time: `execution_state` carries the sample limit and goal tracking, and `interaction`
+   * (`require_interaction`) is defaulted to 1 when omitted. Neither is a tool input.
+   */
+  execution_state?: unknown;
+  interaction?: unknown;
   // Present only when source='repeat_scheduled'. Outer key is abbreviated (`sche_options`,
   // not `schedule_options`). Inner `schedule_time` is singular but holds an array.
   sche_options?: {
@@ -437,14 +471,24 @@ export function toApiBody(input: SendNotificationInput): ApiNotificationBody {
   //    recurrence when source='repeat_scheduled' (the API flips body.status to
   //    'repeat_scheduled' internally on save).
   const isRecurring = !!input.recurring_schedule;
+  // A dated DRAFT is sent as `scheduled` on purpose: the formatter only stores `valid_from` in its
+  // `case schedule` branch, and the `action=draft` block afterwards overrides the status and sent
+  // date alone — so this is how a draft keeps its time, exactly as the dashboard does it.
+  const keepsScheduleDate = !isRecurring && !!input.schedule_date;
   const apiStatus: ApiNotificationBody['status'] =
-    !isRecurring && input.status === 'schedule' ? 'scheduled' : 'sent';
+    !isRecurring && (input.status === 'schedule' || keepsScheduleDate) ? 'scheduled' : 'sent';
 
-  // Resolve source. The three modes are mutually exclusive (superRefine enforces this).
+  // Resolve source. The delivery modes are mutually exclusive (superRefine enforces this) and win
+  // over everything, because `source` is the API's only carrier for them.
+  //
+  // An EDIT also replays the notification's existing source, but NOT here: zod strips unknown keys,
+  // so neither `source` nor `mobile_push` survives `SendNotificationInputSchema.parse`. They are
+  // re-applied to the finished body by `applyReplayedFields`, which the edit path calls.
   let apiSource: ApiNotificationBody['source'] = 'API';
   if (isRecurring) {
     apiSource = 'repeat_scheduled';
-  } else if (input.send_in_subscribers_timezone && input.status === 'schedule') {
+  } else if (input.send_in_subscribers_timezone && input.status !== 'sent') {
+    // Also for a draft, so a subscriber-timezone draft does not quietly become a plain one.
     apiSource = 'parent_sub_timezone';
   }
 
@@ -479,8 +523,15 @@ export function toApiBody(input: SendNotificationInput): ApiNotificationBody {
   // notification_criteria is a discriminated shape on the API side, keyed by which top-level
   // key is present: `audience` → audience groups, `filter` → ad-hoc targeting, neither → the
   // legacy segment shape. The schema guarantees at most one of the two is set, and the filter
-  // branch's validator accepts ONLY the `filter` key, so these never combine. Omit
-  // notification_criteria entirely for "Send to All Subscribers".
+  // branch's validator accepts ONLY the `filter` key, so these never combine.
+  //
+  // "Send to All Subscribers" is sent as an EMPTY OBJECT rather than by omitting the field. The
+  // two are identical to the API — `notificationCriteriaForReqPayload` opens with
+  // `if (_.isEmpty(criteriaData)) return formattedCriteria`, and the fallback validator
+  // (`notificationSchema.criteria`) is a plain object with no required keys, so `{}` passes — but
+  // an explicit empty object says "every subscriber, deliberately" where a missing field only
+  // says "nothing was set". On an UPDATE that distinction is the whole point: the body is a full
+  // replace, so the audience has to be stated rather than left to be inferred from an absence.
   //
   // Any segment names in `subscriber_filter` must already be resolved to ids by
   // resolveSubscriberFilter before this runs — see the note there on why an unresolved
@@ -489,6 +540,8 @@ export function toApiBody(input: SendNotificationInput): ApiNotificationBody {
     body.notification_criteria = { audience: { groups: input.audience_groups } };
   } else if (input.subscriber_filter) {
     body.notification_criteria = { filter: input.subscriber_filter };
+  } else {
+    body.notification_criteria = {};
   }
 
   return body;
@@ -911,3 +964,140 @@ export function toListNotificationsQuery(input: ListNotificationsInput): ApiList
   if (input.include_analytics) query.expand = 'notification_analytics,result_analytics';
   return query;
 }
+
+// =============================================================================
+// pushengage_update_notification
+// =============================================================================
+//
+// Editing is "read, overlay, re-send the whole thing", because `PATCH
+// /sites/:siteId/notifications/:id` validates against the SAME `upsert` schema as the create
+// route and is not a partial update — see the header of `fromApi.ts` for the evidence and for
+// which omitted fields get cleared rather than kept.
+//
+// So this input is only the CHANGES. Every field is optional and anything left out is taken from
+// the notification as it stands. The merged result is then parsed by
+// `SendNotificationInputSchema`, so every cross-field rule the create path enforces (audience
+// exclusivity, schedule_timezone restrictions, the recurring/subscriber-timezone combinations)
+// applies to an edit too, with no second copy to keep in step.
+
+/**
+ * Just the id and the overrides; `.partial()` makes every create field optional.
+ *
+ * `status` is redeclared WITHOUT its default. In zod 4 `.partial()` preserves a field's
+ * `.default()`, so the inherited `.default('sent')` would survive and parsing
+ * `{ notification_id: 1 }` alone would yield `{ notification_id: 1, status: 'sent' }` — which the
+ * merge below would apply over the notification's own status and SEND a draft that the caller only
+ * asked to look at. (Zod 3 dropped the default here, which is why this was not a problem before
+ * the zod 4 upgrade; a test caught it.) An edit must change the status only when the caller says
+ * so, so there is nothing to default to.
+ */
+export const UpdateNotificationInputObject = SendNotificationInputObject.partial().extend({
+  notification_id: z
+    .number()
+    .int()
+    .positive()
+    .describe(
+      'The notification to edit. Get it from pushengage_list_notifications, or from the ' +
+        'notification_id a send tool returned.',
+    ),
+  status: z
+    .enum(['sent', 'schedule', 'draft'])
+    .optional()
+    .describe(
+      'Change the delivery state. Omit to leave it as it is. Set "sent" to send a draft or a ' +
+        'scheduled notification now, or "schedule" with a schedule_date to move it.',
+    ),
+});
+
+export const UpdateNotificationInputSchema = UpdateNotificationInputObject.superRefine(
+  (data, ctx) => {
+    // Only the rules that can be judged from the overrides alone. Everything else is checked on
+    // the MERGED payload, which is what actually gets sent.
+    refineAudienceExclusivity(data, ctx);
+    refineScheduleTimezone(data, ctx);
+    const overrides = Object.keys(data).filter((k) => k !== 'notification_id' && k !== 'site_id');
+    if (overrides.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['notification_id'],
+        message:
+          'Nothing to change — pass at least one field to update alongside notification_id. ' +
+          'To read a notification without changing it, use pushengage_list_notifications.',
+      });
+    }
+  },
+);
+
+export type UpdateNotificationInput = z.infer<typeof UpdateNotificationInputSchema>;
+
+// =============================================================================
+// delete / duplicate / resend
+// =============================================================================
+//
+// Which notification states each one allows differs, and the differences are the API's, not ours
+// (see docs/KNOWLEDGE.md). In short: edit and delete take the same set (draft, scheduled,
+// recurring, paused recurring); resend is the mirror image and needs one that has ALREADY gone
+// out; duplicate has no state rule at all, because it only reads the original and creates a new
+// notification from it.
+
+const NotificationIdField = z
+  .number()
+  .int()
+  .positive()
+  .describe(
+    'The notification to act on. Get it from pushengage_list_notifications, or from the ' +
+      'notification_id a send tool returned.',
+  );
+
+export const DeleteNotificationInputObject = z.object({
+  notification_id: NotificationIdField,
+  site_id: z.number().int().positive().optional().describe('Override the currently selected site'),
+});
+export const DeleteNotificationInputSchema = DeleteNotificationInputObject;
+export type DeleteNotificationInput = z.infer<typeof DeleteNotificationInputSchema>;
+
+export const ResendNotificationInputObject = z.object({
+  notification_id: NotificationIdField,
+  site_id: z.number().int().positive().optional().describe('Override the currently selected site'),
+});
+export const ResendNotificationInputSchema = ResendNotificationInputObject;
+export type ResendNotificationInput = z.infer<typeof ResendNotificationInputSchema>;
+
+/**
+ * Duplicating is create-from-read, which is what the dashboard's own Duplicate button does — it
+ * links to the create screen prefilled from the original
+ * (`routes.duplicateNotification` -> `/campaigns/notifications/create?notification=<id>`). There
+ * is no duplicate endpoint, so the copy is a normal create and every field can be overridden on
+ * the way.
+ */
+export const DuplicateNotificationInputObject = SendNotificationInputObject.partial().extend({
+  notification_id: NotificationIdField.describe(
+    'The notification to copy. Its content, image, audience and UTM parameters are reused; any ' +
+      'field you pass overrides the copy.',
+  ),
+  status: z
+    .enum(['sent', 'schedule', 'draft'])
+    .default('draft')
+    .describe(
+      'What to do with the copy. Defaults to "draft" so it is saved for review rather than ' +
+        'dispatched — pass "sent" only when the user asks to send the copy now, or "schedule" ' +
+        'with a schedule_date.',
+    ),
+});
+
+export const DuplicateNotificationInputSchema = DuplicateNotificationInputObject.superRefine(
+  (data, ctx) => {
+    refineAudienceExclusivity(data, ctx);
+    refineScheduleTimezone(data, ctx);
+    if (data.status === 'schedule' && !data.schedule_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['schedule_date'],
+        message:
+          'schedule_date is required when status is "schedule". The original\'s own date is not ' +
+          'reused for a copy, since it may already be in the past.',
+      });
+    }
+  },
+);
+export type DuplicateNotificationInput = z.infer<typeof DuplicateNotificationInputSchema>;

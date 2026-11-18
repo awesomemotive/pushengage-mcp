@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "pushengage-mcp",
   "display_name": "PushEngage",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Send push notifications, build audiences, and view campaign analytics from PushEngage.",
   "long_description": "Connects your AI assistant to your [PushEngage](https://www.pushengage.com/) account so you can send and schedule web push notifications, run A/B tests, build segments and audience groups, inspect campaign analytics, and manage site settings — just by asking.\n\nNo API key is needed: the first time you use a tool, the server opens your browser to the PushEngage dashboard where you click **Authorize**. The access token is stored locally on your machine (`~/.pushengage/mcp.json`, permissions `0600`) and never leaves it.",
   "author": {
@@ -102,6 +102,10 @@
       "description": "Creates a new subscriber attribute on the current site."
     },
     {
+      "name": "pushengage_list_audience_filter_values",
+      "description": "Lists the location and device values recorded on this site, with how many active subscribers carry each one."
+    },
+    {
       "name": "pushengage_list_audience_groups",
       "description": "Lists audience groups on the current site, paginated (response includes `has_more`)."
     },
@@ -120,6 +124,22 @@
     {
       "name": "pushengage_send_ab_notification",
       "description": "Creates an A/B notification on the current site with two variants (variant_a and variant_b)."
+    },
+    {
+      "name": "pushengage_update_notification",
+      "description": "Edits an existing draft, scheduled or recurring notification."
+    },
+    {
+      "name": "pushengage_delete_notification",
+      "description": "Deletes a draft, scheduled or recurring notification, cancelling it if it had not gone out yet."
+    },
+    {
+      "name": "pushengage_resend_notification",
+      "description": "Sends an already-sent notification again, exactly as stored — the content cannot be changed on the way out, because the API re-reads the notification itself."
+    },
+    {
+      "name": "pushengage_duplicate_notification",
+      "description": "Creates a NEW notification from an existing one, reusing its content, image, audience and UTM parameters."
     },
     {
       "name": "pushengage_get_analytics_summary",
@@ -171,7 +191,7 @@
     "claude_desktop": ">=0.10.0",
     "platforms": ["darwin", "win32", "linux"],
     "runtimes": {
-      "node": ">=20.0.0"
+      "node": ">=24.0.0"
     }
   }
 }

@@ -49,7 +49,7 @@ Once connected, just describe what you want. A few examples:
 ## Requirements
 
 - A [PushEngage](https://www.pushengage.com/) account (free or paid) with at least one site.
-- Node.js 20 or newer (the assistant runs the server via `npx`).
+- Node.js 24 or newer (the assistant runs the server via `npx`).
 - An MCP-capable client (Claude Desktop, Claude Code, Cursor, or any other).
 
 ## Install
@@ -170,6 +170,10 @@ All site-scoped tools default to the current site.
 |---|---|
 | `pushengage_list_notifications` | Lists sent, scheduled, and draft notifications, newest first. Filter by status (dashboard-tab semantics), sent-date range, or tags; set `include_analytics` for rolled-up A/B and timezone-send stats. |
 | `pushengage_send_notification` | Sends or schedules a notification. One tool, three delivery modes: send now, one-shot schedule (optionally per-subscriber timezone), and recurring. `schedule_timezone` lets you give the time in your own IANA timezone and have it converted to the site's, with both wall clocks reported back. Targeting mirrors the dashboard's three options: omit both fields for All Subscribers, `audience_groups` for an Audience Group, or `subscriber_filter` for a Custom Audience (segments, location, device, attributes, engagement — segment names are resolved to IDs and verified before sending). |
+| `pushengage_update_notification` | Edits an existing draft, scheduled or recurring notification. Pass the notification ID and only the fields to change; the rest is carried over from the notification as it stands, because the API's update is a full replace rather than a patch. Refuses sent, RSS and A/B notifications, and re-verifies the audience before saving. |
+| `pushengage_duplicate_notification` | Creates a new notification from an existing one, reusing its content and audience, with any field overridden. Works from any notification including a sent one; the copy is saved as a draft unless you ask for it to be sent or scheduled. |
+| `pushengage_delete_notification` | Deletes a draft, scheduled or recurring notification, cancelling a pending send. Sent and RSS notifications cannot be deleted; an A/B test is removed as a pair. |
+| `pushengage_resend_notification` | Sends an already-sent notification again, exactly as stored. Only for notifications that have already gone out — to send a draft now, update it to `sent`; to send a changed copy, duplicate it. |
 | `pushengage_send_ab_notification` | An A/B notification with two variants. Pass `intelligent_ab_test` to sample each variant, pick the winner by click rate after a delay, and roll the winner out to the rest. Supports the same `audience_groups` / `subscriber_filter` targeting, applied to both variants. |
 
 ## Configuration
