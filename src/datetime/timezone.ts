@@ -442,3 +442,22 @@ export function convertToSiteWallClock(
     shifted: sendAs !== requested,
   };
 }
+
+/**
+ * The site's own calendar date (`YYYY-MM-DD`) at a given instant, or null when its timezone is
+ * neither a known PushEngage code nor an IANA zone.
+ *
+ * Needed because the API judges "is this date still in the future?" in the SITE's timezone, not
+ * UTC (`app/Validators/Dashboard/Controllers/Notification/index.js:97-118` converts
+ * `<date> 23:59:59` from the site timezone to UTC before comparing it to now). A UTC date is up to
+ * a day either side of the site's, which is enough to disagree with the API at a boundary.
+ */
+export function siteLocalDate(siteTimezone: string, instantMs: number): string | null {
+  const site = resolveSiteTimezone(siteTimezone);
+  if (site === null) return null;
+  const wall =
+    site.kind === 'offset'
+      ? wallClockAt(instantMs + site.offset_minutes * 60000, 'UTC')
+      : wallClockAt(instantMs, site.zone);
+  return formatWallClock(wall).slice(0, 10);
+}

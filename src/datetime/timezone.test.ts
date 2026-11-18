@@ -1,6 +1,7 @@
 // src/datetime/timezone.test.ts
 import {
   isCallerTimeZone,
+  siteLocalDate,
   isPosixSignedZone,
   convertToSiteWallClock,
   convertWallClock,
@@ -293,5 +294,30 @@ describe('caller zones vs site zones', () => {
     const conversion = convertToSiteWallClock('2026-12-01 09:00:00', 'Asia/Kolkata', 'Etc/GMT+5');
     expect(conversion?.send_as).toBe('2026-11-30 22:30:00');
     expect(conversion?.site_utc_offset).toBe('-05:00');
+  });
+});
+
+describe('siteLocalDate', () => {
+  // 02:00 UTC on the 11th: still the 10th anywhere far enough behind UTC, already the 11th in UTC.
+  const AT_0200_UTC = new Date('2026-11-11T02:00:00Z').getTime();
+
+  it('reads the date in an IANA zone behind UTC', () => {
+    expect(siteLocalDate('America/Los_Angeles', AT_0200_UTC)).toBe('2026-11-10');
+  });
+
+  it('reads the date in an IANA zone ahead of UTC', () => {
+    expect(siteLocalDate('Pacific/Kiritimati', AT_0200_UTC)).toBe('2026-11-11');
+  });
+
+  it('handles the legacy fixed-offset codes the same way the API does', () => {
+    // UP55 is +05:30: 02:00 UTC is 07:30 on the same day.
+    expect(siteLocalDate('UP55', AT_0200_UTC)).toBe('2026-11-11');
+    // UM5 is -05:00: 02:00 UTC is 21:00 the day before.
+    expect(siteLocalDate('UM5', AT_0200_UTC)).toBe('2026-11-10');
+  });
+
+  it('returns null for a timezone neither vocabulary recognises', () => {
+    expect(siteLocalDate('Not/AZone', AT_0200_UTC)).toBeNull();
+    expect(siteLocalDate('', AT_0200_UTC)).toBeNull();
   });
 });

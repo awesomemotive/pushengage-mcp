@@ -245,6 +245,12 @@ export async function resolveSubscriberFilter(
   client: ApiClient,
   siteId: number,
   rawFilter: SubscriberFilter,
+  /**
+   * What did not happen, for the error message. The resolver is shared by the send, edit and
+   * duplicate paths, and "nothing was sent" reads oddly to someone who was editing — raised in
+   * review of PR #290.
+   */
+  outcome: 'sent' | 'changed' | 'created' = 'sent',
 ): Promise<{ filter: SubscriberFilter; date_conversions: FilterDateConversion[] }> {
   // Dates first, and purely: naive values are reinterpreted from the caller's timezone into UTC
   // (which is what a filter date means) and the MCP-only `timezone` key is stripped so it never
@@ -287,7 +293,7 @@ export async function resolveSubscriberFilter(
     // have been wrong half the time — this resolver serves `subscriber_filter` on the send tools
     // and `filter` on pushengage_create_audience_group.
     throw new ValidationError(
-      `Could not resolve the audience filter, so nothing was sent:\n` +
+      `Could not resolve the audience filter, so nothing was ${outcome}:\n` +
         problems.map((p) => `  - ${p}`).join('\n'),
     );
   }

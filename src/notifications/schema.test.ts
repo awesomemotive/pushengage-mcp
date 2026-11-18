@@ -1,6 +1,11 @@
 // src/notifications/schema.test.ts
 import {
+  DeleteNotificationInputSchema,
+  UpdateNotificationInputObject,
+  DuplicateNotificationInputSchema,
   ListNotificationsInputSchema,
+  ResendNotificationInputSchema,
+  UpdateNotificationInputSchema,
   SendAbNotificationInputSchema,
   SendNotificationInputSchema,
   toAbApiBody,
@@ -59,6 +64,8 @@ describe('toApiBody', () => {
       notification_url: 'https://example.com',
       status: 'sent',
       source: 'API',
+      // Explicit "every subscriber" rather than an absent field — see the note in toApiBody.
+      notification_criteria: {},
     });
     expect(body.tags).toBeUndefined();
   });
@@ -129,14 +136,21 @@ describe('toApiBody', () => {
       expect(body.notification_criteria).toEqual({ audience: { groups: [12, 34, 56] } });
     });
 
-    it('omits notification_criteria entirely when audience_groups is not set', () => {
+    /**
+     * "All Subscribers" is sent as an explicit empty object, not by omitting the field. The two
+     * are identical to the API (`notificationCriteriaForReqPayload` returns early on
+     * `_.isEmpty(criteriaData)`, and the fallback validator has no required keys), but on an
+     * UPDATE — which is a full replace — stating the audience beats leaving it to be inferred
+     * from an absence.
+     */
+    it('sends an empty notification_criteria when no audience is set', () => {
       const body = toApiBody({
         title: 'a',
         message: 'b',
         url: 'https://example.com',
         status: 'sent',
       });
-      expect(body.notification_criteria).toBeUndefined();
+      expect(body.notification_criteria).toEqual({});
     });
   });
 
@@ -803,10 +817,8 @@ describe('subscriber_filter targeting', () => {
     expect(Object.keys(body.notification_criteria as object)).toEqual(['filter']);
   });
 
-  it('omits notification_criteria entirely when neither mode is set', () => {
-    expect(
-      toApiBody(SendNotificationInputSchema.parse(base)).notification_criteria,
-    ).toBeUndefined();
+  it('sends an empty notification_criteria when neither mode is set', () => {
+    expect(toApiBody(SendNotificationInputSchema.parse(base)).notification_criteria).toEqual({});
   });
 
   it('still emits the audience shape for audience_groups', () => {
@@ -971,5 +983,115 @@ describe('SendNotificationInputSchema — schedule_timezone', () => {
       });
       expect(result.success).toBe(true);
     }
+  });
+});
+
+// =============================================================================
+// pushengage_update_notification — only the overrides, everything optional
+// =============================================================================
+
+describe('UpdateNotificationInputSchema', () => {
+  it('accepts an id plus a single field to change', () => {
+    const result = UpdateNotificationInputSchema.safeParse({
+      notification_id: 169007291,
+      title: 'New title',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('does not require title, message or url, unlike the create schema', () => {
+    // They come from the notification being edited; requiring them would force the assistant to
+    // restate fields the user never mentioned.
+    expect(
+      UpdateNotificationInputSchema.safeParse({ notification_id: 1, expire_in: 3600 }).success,
+    ).toBe(true);
+    expect(SendNotificationInputSchema.safeParse({ title: 'x', message: 'y' }).success).toBe(false);
+  });
+
+  /**
+   * Guards a silent send. `SendNotificationInputObject.status` carries `.default('sent')`, and
+   * zod 4 — unlike zod 3 — preserves a default through `.partial()`. Left inherited, parsing an
+   * id on its own yielded `status: 'sent'`, which the tool would then merge over the
+   * notification's own status and dispatch a draft the caller only meant to inspect.
+   */
+  it('does not invent a status when the caller did not set one', () => {
+    const result = UpdateNotificationInputObject.safeParse({ notification_id: 1 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(Object.keys(result.data)).toEqual(['notification_id']);
+      expect(result.data.status).toBeUndefined();
+    }
+  });
+
+  it('rejects an id with nothing to change', () => {
+    const result = UpdateNotificationInputSchema.safeParse({ notification_id: 169007291 });
+    expect(result.success).toBe(false);
+    const message = result.success ? '' : JSON.stringify(result.error.issues);
+    expect(message).toContain('Nothing to change');
+    // Must name the read-only alternative, or the model retries the same empty edit.
+    expect(message).toContain('pushengage_list_notifications');
+  });
+
+  it('still refuses both audience modes at once', () => {
+    const result = UpdateNotificationInputSchema.safeParse({
+      notification_id: 1,
+      audience_groups: [12],
+      subscriber_filter: { op: 'or', value: [[{ field: 'device', op: 'in', value: ['mobile'] }]] },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('requires a positive notification_id', () => {
+    expect(
+      UpdateNotificationInputSchema.safeParse({ notification_id: 0, title: 'x' }).success,
+    ).toBe(false);
+    expect(
+      UpdateNotificationInputSchema.safeParse({ notification_id: -5, title: 'x' }).success,
+    ).toBe(false);
+  });
+});
+
+describe('DuplicateNotificationInputSchema', () => {
+  it('defaults the copy to a draft rather than dispatching it', () => {
+    const result = DuplicateNotificationInputSchema.safeParse({ notification_id: 1 });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.status).toBe('draft');
+  });
+
+  it('allows sending the copy immediately when asked', () => {
+    const result = DuplicateNotificationInputSchema.safeParse({
+      notification_id: 1,
+      status: 'sent',
+      title: 'Second attempt',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("requires a date for a scheduled copy, since the original's may be in the past", () => {
+    const result = DuplicateNotificationInputSchema.safeParse({
+      notification_id: 1,
+      status: 'schedule',
+    });
+    expect(result.success).toBe(false);
+    expect(result.success ? '' : JSON.stringify(result.error.issues)).toContain(
+      'not reused for a copy',
+    );
+  });
+
+  // Unlike an edit, a duplicate with no overrides is meaningful — it is a copy.
+  it('accepts an id on its own', () => {
+    expect(DuplicateNotificationInputSchema.safeParse({ notification_id: 42 }).success).toBe(true);
+  });
+});
+
+describe('DeleteNotificationInputSchema / ResendNotificationInputSchema', () => {
+  it('take an id and nothing else is required', () => {
+    expect(DeleteNotificationInputSchema.safeParse({ notification_id: 1 }).success).toBe(true);
+    expect(ResendNotificationInputSchema.safeParse({ notification_id: 1 }).success).toBe(true);
+  });
+
+  it('reject a missing or non-positive id', () => {
+    expect(DeleteNotificationInputSchema.safeParse({}).success).toBe(false);
+    expect(ResendNotificationInputSchema.safeParse({ notification_id: 0 }).success).toBe(false);
   });
 });
